@@ -16,7 +16,8 @@ function resetState() {
         targetCount: 0,
         classifiedReels: [],
         processedCount: 0,
-        tabId: null
+        tabId: null,
+        lastDetails: []
     }
 }
 
@@ -164,12 +165,12 @@ async function handleClassifyReel(msg) {
     
     scanState.processedCount = msg.current
     
-    scanState.lastDetails = []
+    if (!scanState.lastDetails) scanState.lastDetails = [];
 
     const summary = result.summary || msg.reel.caption?.substring(0, 30) || '(내용 불명)';
 
     if (result.error) {
-        scanState.lastDetails.push(`릴스 ${msg.current}: ${result.error}`)
+        scanState.lastDetails.push(`#${msg.current} ${result.error}`)
     } else if (result.matches.length > 0 && result.confidence >= settings.confidenceThreshold) {
         scanState.classifiedReels.push({
             reel: msg.reel,
@@ -177,11 +178,11 @@ async function handleClassifyReel(msg) {
             reason: result.reason,
             confidence: result.confidence
         })
-        scanState.lastDetails.push(`[${summary}] → ${result.matches.join(', ')}에게 매칭! (${Math.round(result.confidence * 100)}%)`)
+        scanState.lastDetails.push(`#${msg.current} [${summary}] → ${result.matches.join(', ')}에게 매칭! (${Math.round(result.confidence * 100)}%)`)
     } else if (result.matches.length > 0) {
-        scanState.lastDetails.push(`[${summary}] → 확신 부족 (${Math.round(result.confidence * 100)}%)`)
+        scanState.lastDetails.push(`#${msg.current} [${summary}] → 확신 부족 (${Math.round(result.confidence * 100)}%)`)
     } else {
-        scanState.lastDetails.push(`[${summary}] → 패스`)
+        scanState.lastDetails.push(`#${msg.current} [${summary}] → 패스`)
     }
     
     broadcastToPopup({

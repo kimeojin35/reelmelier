@@ -121,7 +121,10 @@ section { padding: 12px 16px; }
   background: linear-gradient(90deg, #6a0dad, #e91e63);
   height: 100%; border-radius: 3px; width: 0%; transition: width 0.3s;
 }
-.progress-detail { font-size: 11px; color: #888; margin-top: 6px; }
+.progress-detail {
+  font-size: 11px; color: #888; margin-top: 6px;
+  max-height: 150px; overflow-y: auto; line-height: 1.6;
+}
 
 /* Results */
 .result-box { background: #252545; border-radius: 8px; padding: 12px; }

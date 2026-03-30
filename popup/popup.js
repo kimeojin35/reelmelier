@@ -149,8 +149,13 @@ function updateProgress(current, total, details) {
   document.getElementById('progressText').textContent = `${current}/${total} 릴스 확인`;
   document.getElementById('progressPercent').textContent = `${pct}%`;
   document.getElementById('progressFill').style.width = `${pct}%`;
-  const detailText = details.length > 0 ? details.join(', ') : '';
-  document.getElementById('progressDetail').textContent = detailText;
+  const el = document.getElementById('progressDetail');
+  if (details.length > 0) {
+    el.innerHTML = details.map((d) => `<div>${d}</div>`).join('');
+    el.scrollTop = el.scrollHeight;
+  } else {
+    el.innerHTML = '';
+  }
 }
 
 function showResult(result) {
