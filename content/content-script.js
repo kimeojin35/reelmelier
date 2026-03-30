@@ -14,54 +14,102 @@
     };
   }
 
-  // Fetch reels feed from Instagram API (same-origin = cookies auto-included)
-  async function fetchReelsFeed(count) {
+  // Parse reel items from various API response formats
+  function parseReelItems(data) {
     const reels = [];
-    let maxId = null;
 
-    while (reels.length < count) {
-      const res = await fetch('https://www.instagram.com/api/v1/clips/home/', {
-        method: 'POST',
-        headers: { ...igHeaders(), 'Content-Type': 'application/x-www-form-urlencoded' },
-        credentials: 'include',
-        body: new URLSearchParams({ paging_token: maxId || '', max_id: maxId || '' }),
-      });
+    function extractReel(media) {
+      if (!media || !media.code) return null;
+      const caption = media.caption?.text || '';
+      const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
+      const comments = (media.preview_comments || []).slice(0, 10).map((c) => c.text || '');
+      const thumbnailUrl = media.image_versions2?.candidates?.[0]?.url || null;
+      const audioTitle =
+        media.clips_metadata?.music_info?.music_asset_info?.title ||
+        media.clips_metadata?.original_sound_info?.original_audio_title || '';
+      return {
+        reelId: media.code,
+        reelUrl: `https://www.instagram.com/reel/${media.code}/`,
+        caption, hashtags: hashtags.map((h) => h.slice(1)), comments, thumbnailUrl, audioTitle,
+      };
+    }
 
-      if (!res.ok) break;
+    // Try various response structures
+    const items = data.items || data.media || data.reels_media || [];
+    for (const item of items) {
+      const media = item.media || item;
+      const reel = extractReel(media);
+      if (reel) reels.push(reel);
+    }
 
-      const data = await res.json();
-      const items = data.items || [];
-      if (items.length === 0) break;
-
-      for (const item of items) {
-        if (reels.length >= count) break;
-        const media = item.media;
-        if (!media || !media.code) continue;
-
-        const caption = media.caption?.text || '';
-        const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
-        const comments = (media.preview_comments || []).slice(0, 10).map((c) => c.text || '');
-        const thumbnailUrl = media.image_versions2?.candidates?.[0]?.url || null;
-        const audioTitle =
-          media.clips_metadata?.music_info?.music_asset_info?.title ||
-          media.clips_metadata?.original_sound_info?.original_audio_title || '';
-
-        reels.push({
-          reelId: media.code,
-          reelUrl: `https://www.instagram.com/reel/${media.code}/`,
-          caption,
-          hashtags: hashtags.map((h) => h.slice(1)),
-          comments,
-          thumbnailUrl,
-          audioTitle,
-        });
+    // GraphQL response structure
+    if (data.data) {
+      const edges = data.data.xdt_api__v1__clips__home__connection_v2?.edges ||
+                    data.data.xdt_api__v1__feed__reels_media?.edges || [];
+      for (const edge of edges) {
+        const media = edge.node?.media;
+        const reel = extractReel(media);
+        if (reel) reels.push(reel);
       }
-
-      maxId = data.paging_info?.max_id;
-      if (!maxId) break;
     }
 
     return reels;
+  }
+
+  // Fetch reels feed — try multiple endpoints
+  async function fetchReelsFeed(count) {
+    const headers = igHeaders();
+    const postHeaders = { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' };
+
+    const endpoints = [
+      // REST endpoints
+      { url: 'https://www.instagram.com/api/v1/feed/reels_tray/', method: 'GET', headers },
+      { url: 'https://www.instagram.com/api/v1/clips/home/', method: 'POST', headers: postHeaders, body: '' },
+      { url: 'https://www.instagram.com/api/v1/discover/web/explore_grid/', method: 'GET', headers },
+    ];
+
+    for (const ep of endpoints) {
+      try {
+        const opts = { method: ep.method, headers: ep.headers, credentials: 'include' };
+        if (ep.body !== undefined && ep.method === 'POST') opts.body = new URLSearchParams(ep.body);
+        const res = await fetch(ep.url, opts);
+        if (!res.ok) continue;
+
+        const data = await res.json();
+        const reels = parseReelItems(data);
+        if (reels.length > 0) return reels.slice(0, count);
+      } catch {
+        continue;
+      }
+    }
+
+    // Last resort: scrape the /reels/ page HTML for embedded JSON data
+    try {
+      const res = await fetch('https://www.instagram.com/reels/', { credentials: 'include' });
+      if (res.ok) {
+        const html = await res.text();
+        // Instagram embeds data in script tags
+        const jsonMatches = html.matchAll(/"code":"([A-Za-z0-9_-]+)".*?"text":"((?:[^"\\]|\\.)*)"/g);
+        const reels = [];
+        const seen = new Set();
+        for (const m of jsonMatches) {
+          if (seen.has(m[1]) || reels.length >= count) continue;
+          seen.add(m[1]);
+          const caption = m[2].replace(/\\n/g, ' ').replace(/\\"/g, '"');
+          const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
+          reels.push({
+            reelId: m[1],
+            reelUrl: `https://www.instagram.com/reel/${m[1]}/`,
+            caption,
+            hashtags: hashtags.map((h) => h.slice(1)),
+            comments: [], thumbnailUrl: null, audioTitle: '',
+          });
+        }
+        if (reels.length > 0) return reels;
+      }
+    } catch {}
+
+    return [];
   }
 
   // Send DM via Instagram API
