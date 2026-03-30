@@ -184,32 +184,69 @@
     window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
   }
 
-  // Wait for URL to change (indicates new reel loaded)
+  // Get current video element's src to detect reel change
+  function getCurrentVideoSrc() {
+    const videos = document.querySelectorAll('video');
+    for (const v of videos) {
+      if (v.offsetHeight > 300) return v.currentSrc || v.src || '';
+    }
+    return videos[0]?.currentSrc || videos[0]?.src || '';
+  }
+
+  // Wait for something to change (URL or video)
   async function waitForNewReel(timeout = 8000) {
     const startUrl = window.location.href;
+    const startVideo = getCurrentVideoSrc();
     const start = Date.now();
     while (Date.now() - start < timeout) {
-      if (window.location.href !== startUrl) return true;
+      const urlChanged = window.location.href !== startUrl;
+      const videoChanged = getCurrentVideoSrc() !== startVideo;
+      if (urlChanged || videoChanged) return true;
       await sleep(300);
     }
     return false;
   }
 
+  // Generate unique ID for current reel
+  function getCurrentReelId() {
+    // Try URL first
+    const urlCode = getReelCodeFromUrl();
+    if (urlCode && urlCode !== 'reels') return urlCode;
+    // Fall back to video src hash
+    const src = getCurrentVideoSrc();
+    if (src) {
+      let hash = 0;
+      for (let i = 0; i < Math.min(src.length, 100); i++) {
+        hash = ((hash << 5) - hash) + src.charCodeAt(i);
+        hash |= 0;
+      }
+      return `v${Math.abs(hash)}`;
+    }
+    return `t${Date.now()}`;
+  }
+
   // Main scan loop
   async function processReels() {
     // Wait for first reel to load
-    await sleep(2000);
+    await sleep(3000);
 
     while (isScanning && collectedCount < targetCount) {
-      const reelCode = getReelCodeFromUrl();
+      const reelId = getCurrentReelId();
 
-      if (reelCode && !processedReelIds.has(reelCode)) {
-        processedReelIds.add(reelCode);
+      if (!processedReelIds.has(reelId)) {
+        processedReelIds.add(reelId);
 
-        // Try API first, fall back to DOM
-        let reelData = await fetchReelData(reelCode);
+        // Wait for video to be ready
+        await sleep(1000);
+
+        // Try API first (if URL has shortcode), fall back to DOM
+        const urlCode = getReelCodeFromUrl();
+        let reelData = null;
+        if (urlCode && urlCode !== 'reels') {
+          reelData = await fetchReelData(urlCode);
+        }
         if (!reelData) {
-          reelData = await extractFromDOM(reelCode);
+          reelData = await extractFromDOM(reelId);
         }
 
         collectedCount++;
@@ -224,23 +261,20 @@
           }, () => resolve());
         });
 
-        // Brief pause before scrolling to next
-        await sleep(1000);
+        await sleep(500);
       }
 
+      // Scroll to next reel
       if (collectedCount < targetCount) {
-        // Try up to 3 times to move to next reel
-        let moved = false;
-        for (let attempt = 0; attempt < 3 && !moved; attempt++) {
-          scrollToNextReel();
-          moved = await waitForNewReel(4000);
-          if (!moved) await sleep(1000);
-        }
+        scrollToNextReel();
+        const moved = await waitForNewReel(6000);
         if (!moved) {
-          // Force continue even if URL didn't change — maybe reel loaded without URL update
-          await sleep(2000);
+          // Try again
+          scrollToNextReel();
+          await waitForNewReel(4000);
         }
-        await sleep(500);
+        // Wait for new video to start playing
+        await sleep(1500);
       }
     }
 
