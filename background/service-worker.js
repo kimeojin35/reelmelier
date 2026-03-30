@@ -66,6 +66,11 @@ async function handleStartScan(msg) {
   scanState.friends = msg.friends;
   scanState.targetCount = msg.count;
 
+  // Persist running state immediately
+  await chrome.storage.local.set({
+    scanProgress: { isRunning: true, current: 0, total: msg.count, details: ['시작 중...'] },
+  });
+
   const tabs = await chrome.tabs.query({ url: 'https://www.instagram.com/*' });
   let tab;
 
@@ -125,9 +130,10 @@ async function handleStartScan(msg) {
 
 function handleStopScan() {
   if (scanState.tabId) {
-    chrome.tabs.sendMessage(scanState.tabId, { type: 'STOP_CONTENT_SCAN' });
+    chrome.tabs.sendMessage(scanState.tabId, { type: 'STOP_CONTENT_SCAN' }).catch(() => {});
   }
   scanState.isRunning = false;
+  chrome.storage.local.set({ scanProgress: { isRunning: false } });
 }
 
 async function handleClassifyReel(msg) {
