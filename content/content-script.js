@@ -1,15 +1,4 @@
 (function () {
-  let isScanning = false;
-  let processedReelIds = new Set();
-  let targetCount = 0;
-  let collectedCount = 0;
-  let lastUrl = '';
-
-  function sleep(ms) {
-    return new Promise((resolve) => setTimeout(resolve, ms));
-  }
-
-  // Get CSRF token from cookie
   function getCsrfToken() {
     return document.cookie
       .split('; ')
@@ -17,221 +6,124 @@
       ?.split('=')[1] || '';
   }
 
-  // Extract reel code from current URL
-  function getReelCodeFromUrl() {
-    const match = window.location.href.match(/\/reels?\/([A-Za-z0-9_-]+)/);
-    return match ? match[1] : null;
-  }
-
-  // Fetch reel info using Instagram's API (same-origin, cookies included)
-  async function fetchReelData(reelCode) {
-    try {
-      const res = await fetch(
-        `https://www.instagram.com/api/v1/media/${reelCode}/info/`,
-        {
-          headers: {
-            'X-IG-App-ID': '936619743392459',
-            'X-CSRFToken': getCsrfToken(),
-            'X-Requested-With': 'XMLHttpRequest',
-          },
-          credentials: 'include',
-        }
-      );
-
-      if (!res.ok) return null;
-
-      const data = await res.json();
-      const item = data.items?.[0];
-      if (!item) return null;
-
-      const caption = item.caption?.text || '';
-      const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
-      const comments = (item.preview_comments || [])
-        .slice(0, 10)
-        .map((c) => c.text || '');
-      const thumbnailUrl = item.image_versions2?.candidates?.[0]?.url || null;
-      const audioTitle =
-        item.clips_metadata?.music_info?.music_asset_info?.title ||
-        item.clips_metadata?.original_sound_info?.original_audio_title ||
-        '';
-
-      return {
-        reelId: reelCode,
-        reelUrl: `https://www.instagram.com/reel/${reelCode}/`,
-        caption,
-        hashtags: hashtags.map((h) => h.slice(1)),
-        comments,
-        thumbnailUrl,
-        audioTitle,
-      };
-    } catch {
-      return null;
-    }
-  }
-
-  // Fallback: extract whatever text is visible on page
-  function extractFromDOM(reelCode) {
-    // Try multiple selectors for caption
-    const captionEl =
-      document.querySelector('h1') ||
-      document.querySelector('span[dir="auto"]') ||
-      document.querySelector('[class*="Caption"]');
-    const caption = captionEl?.textContent?.trim() || '';
-    const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
-
+  function igHeaders() {
     return {
-      reelId: reelCode || `dom-${Date.now()}`,
-      reelUrl: window.location.href,
-      caption,
-      hashtags: hashtags.map((h) => h.slice(1)),
-      comments: [],
-      thumbnailUrl: null,
-      audioTitle: '',
+      'X-IG-App-ID': '936619743392459',
+      'X-CSRFToken': getCsrfToken(),
+      'X-Requested-With': 'XMLHttpRequest',
     };
   }
 
-  // Move to next reel — try every method
-  function scrollToNextReel() {
-    // Method 1: Find the scrollable reels container and scroll it
-    const scrollables = document.querySelectorAll('div');
-    for (const div of scrollables) {
-      const style = window.getComputedStyle(div);
-      if (
-        style.scrollSnapType && style.scrollSnapType !== 'none' &&
-        div.scrollHeight > div.clientHeight
-      ) {
-        div.scrollBy({ top: div.clientHeight, behavior: 'smooth' });
-        return;
-      }
-    }
+  // Fetch reels feed from Instagram API (same-origin = cookies auto-included)
+  async function fetchReelsFeed(count) {
+    const reels = [];
+    let maxId = null;
 
-    // Method 2: Find video elements and scroll their section container
-    const videos = document.querySelectorAll('video');
-    if (videos.length > 0) {
-      const section = videos[0].closest('section') || videos[0].closest('[role="main"]') || videos[0].parentElement?.parentElement?.parentElement;
-      if (section && section.scrollHeight > section.clientHeight) {
-        section.scrollBy({ top: section.clientHeight, behavior: 'smooth' });
-        return;
-      }
-    }
-
-    // Method 3: Keyboard events on multiple targets
-    const targets = [document.activeElement, document.body, document];
-    for (const target of targets) {
-      if (target) {
-        target.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'ArrowDown', code: 'ArrowDown', keyCode: 40,
-          which: 40, bubbles: true, cancelable: true,
-        }));
-      }
-    }
-
-    // Method 4: Window scroll as last resort
-    window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
-  }
-
-  // Wait for URL to change (indicates new reel loaded)
-  async function waitForNewReel(timeout = 8000) {
-    const startUrl = window.location.href;
-    const start = Date.now();
-    while (Date.now() - start < timeout) {
-      if (window.location.href !== startUrl) return true;
-      await sleep(300);
-    }
-    return false;
-  }
-
-  // Main scan loop
-  async function processReels() {
-    // Wait for first reel to load
-    await sleep(2000);
-
-    while (isScanning && collectedCount < targetCount) {
-      const reelCode = getReelCodeFromUrl();
-
-      if (reelCode && !processedReelIds.has(reelCode)) {
-        processedReelIds.add(reelCode);
-
-        // Try API first, fall back to DOM
-        let reelData = await fetchReelData(reelCode);
-        if (!reelData || !reelData.caption) {
-          reelData = extractFromDOM(reelCode);
-        }
-
-        collectedCount++;
-
-        // Send to background for classification
-        chrome.runtime.sendMessage({
-          type: 'CLASSIFY_REEL',
-          reel: reelData,
-          current: collectedCount,
-          total: targetCount,
-        }).catch(() => {});
-
-        // Wait before scrolling to next
-        await sleep(1500);
-      }
-
-      if (collectedCount < targetCount) {
-        // Try up to 3 times to move to next reel
-        let moved = false;
-        for (let attempt = 0; attempt < 3 && !moved; attempt++) {
-          scrollToNextReel();
-          moved = await waitForNewReel(4000);
-          if (!moved) await sleep(1000);
-        }
-        if (!moved) {
-          // Force continue even if URL didn't change — maybe reel loaded without URL update
-          await sleep(2000);
-        }
-        await sleep(500);
-      }
-    }
-
-    if (collectedCount >= targetCount) {
-      chrome.runtime.sendMessage({ type: 'COLLECTION_DONE' }).catch(() => {});
-    }
-  }
-
-  // Listen for commands from background
-  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-    if (msg.type === 'START_CONTENT_SCAN') {
-      isScanning = true;
-      processedReelIds.clear();
-      collectedCount = 0;
-      targetCount = msg.count;
-      processReels();
-      sendResponse({ ok: true });
-    }
-    if (msg.type === 'STOP_CONTENT_SCAN') {
-      isScanning = false;
-      sendResponse({ ok: true });
-    }
-    if (msg.type === 'SEND_DM') {
-      sendDM(msg.username, msg.reelUrls).then((result) => {
-        sendResponse(result);
+    while (reels.length < count) {
+      const res = await fetch('https://www.instagram.com/api/v1/clips/home/', {
+        method: 'POST',
+        headers: { ...igHeaders(), 'Content-Type': 'application/x-www-form-urlencoded' },
+        credentials: 'include',
+        body: new URLSearchParams({ paging_token: maxId || '', max_id: maxId || '' }),
       });
-      return true;
-    }
-    if (msg.type === 'CHECK_LOGIN') {
-      const isLoggedIn =
-        !window.location.href.includes('/accounts/login') &&
-        document.querySelector('svg[aria-label="홈"], svg[aria-label="Home"]') !== null;
-      sendResponse({ isLoggedIn });
-    }
-    if (msg.type === 'GET_PROFILE') {
-      getProfileInfo().then((profile) => sendResponse(profile));
-      return true;
-    }
-  });
 
+      if (!res.ok) break;
+
+      const data = await res.json();
+      const items = data.items || [];
+      if (items.length === 0) break;
+
+      for (const item of items) {
+        if (reels.length >= count) break;
+        const media = item.media;
+        if (!media || !media.code) continue;
+
+        const caption = media.caption?.text || '';
+        const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
+        const comments = (media.preview_comments || []).slice(0, 10).map((c) => c.text || '');
+        const thumbnailUrl = media.image_versions2?.candidates?.[0]?.url || null;
+        const audioTitle =
+          media.clips_metadata?.music_info?.music_asset_info?.title ||
+          media.clips_metadata?.original_sound_info?.original_audio_title || '';
+
+        reels.push({
+          reelId: media.code,
+          reelUrl: `https://www.instagram.com/reel/${media.code}/`,
+          caption,
+          hashtags: hashtags.map((h) => h.slice(1)),
+          comments,
+          thumbnailUrl,
+          audioTitle,
+        });
+      }
+
+      maxId = data.paging_info?.max_id;
+      if (!maxId) break;
+    }
+
+    return reels;
+  }
+
+  // Send DM via Instagram API
+  async function sendDM(username, reelUrls) {
+    const results = { sent: [], failed: [] };
+
+    // Find user ID
+    const searchRes = await fetch(
+      `https://www.instagram.com/api/v1/web/search/topsearch/?query=${encodeURIComponent(username)}&context=blended`,
+      { headers: igHeaders(), credentials: 'include' }
+    );
+    if (!searchRes.ok) {
+      return { sent: [], failed: reelUrls.map((u) => ({ url: u, error: 'Search failed' })) };
+    }
+
+    const searchData = await searchRes.json();
+    const userMatch = searchData.users?.find(
+      (u) => u.user.username.toLowerCase() === username.toLowerCase()
+    );
+    if (!userMatch) {
+      return { sent: [], failed: reelUrls.map((u) => ({ url: u, error: `@${username} not found` })) };
+    }
+
+    const recipientId = String(userMatch.user.pk || userMatch.user.id);
+
+    for (const reelUrl of reelUrls) {
+      try {
+        const res = await fetch('https://www.instagram.com/api/v1/direct_v2/threads/broadcast/link/', {
+          method: 'POST',
+          headers: { ...igHeaders(), 'Content-Type': 'application/x-www-form-urlencoded' },
+          credentials: 'include',
+          body: new URLSearchParams({
+            recipient_users: JSON.stringify([recipientId]),
+            action: 'send_item',
+            link_text: reelUrl,
+            link_urls: JSON.stringify([reelUrl]),
+            client_context: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+          }),
+        });
+
+        if (res.ok) {
+          results.sent.push(reelUrl);
+        } else {
+          results.failed.push({ url: reelUrl, error: `DM ${res.status}` });
+        }
+      } catch (err) {
+        results.failed.push({ url: reelUrl, error: err.message });
+      }
+      await new Promise((r) => setTimeout(r, 1500));
+    }
+
+    return results;
+  }
+
+  // Get profile info
   async function getProfileInfo() {
     if (window.location.href.includes('/accounts/login')) {
       return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
     }
     try {
       const res = await fetch('https://www.instagram.com/api/v1/accounts/edit/web_form_data/', {
-        headers: { 'X-IG-App-ID': '936619743392459', 'X-CSRFToken': getCsrfToken() },
+        headers: igHeaders(),
         credentials: 'include',
       });
       if (res.ok) {
@@ -247,9 +139,30 @@
         }
       }
     } catch {}
-    return {
-      isLoggedIn: document.querySelector('svg[aria-label="홈"], svg[aria-label="Home"]') !== null,
-      username: '', fullName: '', profilePic: '',
-    };
+    return { isLoggedIn: true, username: '', fullName: '로그인됨', profilePic: '' };
   }
+
+  // Message handler
+  chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+    switch (msg.type) {
+      case 'FETCH_REELS':
+        fetchReelsFeed(msg.count).then((reels) => sendResponse({ reels }));
+        return true;
+
+      case 'SEND_DM':
+        sendDM(msg.username, msg.reelUrls).then((result) => sendResponse(result));
+        return true;
+
+      case 'GET_PROFILE':
+        getProfileInfo().then((profile) => sendResponse(profile));
+        return true;
+
+      case 'PING':
+        sendResponse({ ok: true });
+        return false;
+
+      default:
+        return false;
+    }
+  });
 })();
