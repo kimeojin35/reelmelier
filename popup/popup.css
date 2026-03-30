@@ -4,102 +4,109 @@ body {
   width: 380px;
   min-height: 400px;
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-  background: #0f0f1a;
-  color: #e0e0e0;
+  background: #111;
+  color: #e5e5e5;
   font-size: 13px;
 }
 
 header {
-  background: linear-gradient(135deg, #6a0dad, #e91e63);
-  padding: 12px 16px;
+  background: #191919;
+  padding: 14px 16px;
   display: flex;
   align-items: center;
   justify-content: space-between;
+  border-bottom: 1px solid #282828;
 }
-.logo { font-size: 16px; font-weight: 700; color: white; }
+.logo { font-size: 15px; font-weight: 700; color: #fff; letter-spacing: -0.3px; }
 .icon-btn {
   background: none; border: none; font-size: 14px; cursor: pointer;
-  color: rgba(255,255,255,0.7);
+  color: #666;
 }
-.icon-btn:hover { color: white; }
+.icon-btn:hover { color: #fff; }
 
-section { padding: 12px 16px; }
+section { padding: 14px 16px; }
+section + section { border-top: 1px solid #1e1e1e; }
 
 .section-label {
-  font-size: 11px; font-weight: 600; color: #e91e63;
-  margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
+  font-size: 10px; font-weight: 600; color: #666;
+  margin-bottom: 10px; text-transform: uppercase; letter-spacing: 1px;
 }
 
 /* Login */
 .btn-login {
-  width: 100%; padding: 10px; background: #252545; border: 1px solid #444;
-  border-radius: 8px; color: #e0e0e0; font-size: 13px; cursor: pointer;
-  transition: border-color 0.2s;
+  width: 100%; padding: 10px; background: #1a1a1a; border: 1px solid #333;
+  border-radius: 8px; color: #999; font-size: 13px; cursor: pointer;
+  transition: all 0.2s;
 }
-.btn-login:hover { border-color: #e91e63; }
+.btn-login:hover { border-color: #555; color: #fff; }
 .profile-card {
   display: flex; align-items: center; gap: 10px;
-  background: #252545; border-radius: 8px; padding: 10px;
+  background: #1a1a1a; border-radius: 8px; padding: 10px;
+  border: 1px solid #282828;
 }
 .profile-pic {
-  width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
-  border: 2px solid #6a0dad;
+  width: 34px; height: 34px; border-radius: 50%; object-fit: cover;
+  border: 1px solid #333;
 }
 .profile-text { flex: 1; min-width: 0; }
-.profile-name { font-size: 13px; font-weight: 600; }
-.profile-username { font-size: 11px; color: #aaa; }
-.login-error { color: #d32f2f; font-size: 12px; margin-top: 6px; }
+.profile-name { font-size: 13px; font-weight: 600; color: #fff; }
+.profile-username { font-size: 11px; color: #666; }
+.login-error { color: #e55; font-size: 12px; margin-top: 6px; }
 
 /* Friend Chips */
 #friendChips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .chip {
-  background: #252545; border-radius: 14px; padding: 5px 12px;
-  font-size: 12px; cursor: pointer; transition: background 0.2s;
-  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  background: #1a1a1a; border: 1px solid #282828; border-radius: 6px; padding: 5px 10px;
+  font-size: 12px; cursor: pointer; transition: all 0.15s;
 }
-.chip:hover { background: #353560; }
-.chip-name { font-weight: 600; }
-.chip-pref { color: #aaa; margin-left: 4px; font-size: 11px; }
+.chip:hover { border-color: #444; background: #222; }
+.chip-name { font-weight: 600; color: #ddd; }
+.chip-pref { color: #666; margin-left: 4px; font-size: 11px; }
 .chip-add {
-  background: none; border: 1px dashed #555; border-radius: 14px;
-  padding: 5px 12px; font-size: 12px; color: #888; cursor: pointer;
+  background: none; border: 1px dashed #333; border-radius: 6px;
+  padding: 5px 10px; font-size: 12px; color: #555; cursor: pointer;
 }
-.chip-add:hover { border-color: #e91e63; color: #e91e63; }
+.chip-add:hover { border-color: #666; color: #aaa; }
 
 /* Modal */
 .modal {
-  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  position: fixed; inset: 0; background: rgba(0,0,0,0.7);
   display: flex; align-items: center; justify-content: center; z-index: 10;
 }
 .modal.hidden { display: none; }
 .modal-content {
-  background: #1a1a2e; border-radius: 10px; padding: 20px; width: 320px;
+  background: #191919; border: 1px solid #282828;
+  border-radius: 10px; padding: 20px; width: 320px;
 }
-.modal-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+.modal-title { font-size: 14px; font-weight: 600; margin-bottom: 16px; color: #fff; }
 .field { margin-bottom: 12px; }
-.field label { display: block; font-size: 11px; color: #aaa; margin-bottom: 4px; }
+.field label { display: block; font-size: 11px; color: #666; margin-bottom: 4px; }
 .field input {
-  width: 100%; padding: 8px 10px; background: #252545; border: 1px solid #333;
-  border-radius: 6px; color: #e0e0e0; font-size: 13px;
+  width: 100%; padding: 8px 10px; background: #111; border: 1px solid #333;
+  border-radius: 6px; color: #e5e5e5; font-size: 13px;
 }
-.field input:focus { border-color: #6a0dad; outline: none; }
+.field input:focus { border-color: #666; outline: none; }
 .modal-actions { display: flex; gap: 8px; margin-top: 16px; }
 .spacer { flex: 1; }
 
 /* Buttons */
 .btn-primary {
-  background: linear-gradient(135deg, #6a0dad, #e91e63); border: none;
-  color: white; padding: 8px 18px; border-radius: 6px; font-size: 13px;
-  font-weight: 600; cursor: pointer;
+  background: #fff; border: none;
+  color: #111; padding: 8px 18px; border-radius: 6px; font-size: 13px;
+  font-weight: 600; cursor: pointer; transition: opacity 0.15s;
 }
+.btn-primary:hover { opacity: 0.85; }
+.btn-primary:disabled { background: #333; color: #666; cursor: default; opacity: 1; }
 .btn-secondary {
-  background: #333; border: none; color: #ccc; padding: 8px 18px;
+  background: #282828; border: none; color: #999; padding: 8px 18px;
   border-radius: 6px; font-size: 13px; cursor: pointer;
 }
+.btn-secondary:hover { background: #333; color: #ccc; }
 .btn-danger {
-  background: #d32f2f; border: none; color: white; padding: 8px 18px;
+  background: #333; border: none; color: #e55; padding: 8px 18px;
   border-radius: 6px; font-size: 13px; cursor: pointer;
 }
+.btn-danger:hover { background: #3a2020; }
 .hidden { display: none !important; }
 
 /* Controls */
@@ -107,28 +114,29 @@ section { padding: 12px 16px; }
   display: flex; align-items: center; gap: 8px;
 }
 #reelCount {
-  width: 56px; padding: 8px; background: #252545; border: 1px solid #333;
-  border-radius: 6px; color: white; font-size: 14px; text-align: center;
+  width: 56px; padding: 8px; background: #1a1a1a; border: 1px solid #333;
+  border-radius: 6px; color: #fff; font-size: 14px; text-align: center;
 }
-.count-label { color: #aaa; }
+#reelCount:focus { border-color: #666; outline: none; }
+.count-label { color: #666; }
 
 /* Progress */
-.progress-box { background: #252545; border-radius: 8px; padding: 12px; }
+.progress-box { background: #1a1a1a; border: 1px solid #282828; border-radius: 8px; padding: 12px; }
 .progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
-.accent { color: #e91e63; }
-.progress-bar { background: #333; border-radius: 3px; height: 4px; }
+.accent { color: #fff; font-weight: 600; }
+.progress-bar { background: #282828; border-radius: 3px; height: 3px; }
 .progress-fill {
-  background: linear-gradient(90deg, #6a0dad, #e91e63);
+  background: #fff;
   height: 100%; border-radius: 3px; width: 0%; transition: width 0.3s;
 }
 .progress-detail {
-  font-size: 11px; color: #888; margin-top: 6px;
-  max-height: 150px; overflow-y: auto; line-height: 1.6;
+  font-size: 11px; color: #777; margin-top: 8px;
+  max-height: 150px; overflow-y: auto; line-height: 1.7;
 }
 
 /* Results */
-.result-box { background: #252545; border-radius: 8px; padding: 12px; }
-.result-friend { margin-bottom: 8px; }
-.result-friend-name { font-weight: 600; font-size: 13px; }
-.result-friend-count { color: #e91e63; font-size: 12px; }
-.result-summary { font-size: 12px; color: #aaa; border-top: 1px solid #333; padding-top: 8px; margin-top: 8px; }
+.result-box { background: #1a1a1a; border: 1px solid #282828; border-radius: 8px; padding: 12px; }
+.result-friend { margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+.result-friend-name { font-weight: 600; font-size: 13px; color: #ddd; }
+.result-friend-count { color: #999; font-size: 12px; }
+.result-summary { font-size: 12px; color: #555; border-top: 1px solid #282828; padding-top: 8px; margin-top: 8px; }

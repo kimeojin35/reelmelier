@@ -7,52 +7,64 @@
     * { box-sizing: border-box; margin: 0; padding: 0; }
     body {
       font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-      background: #0f0f1a;
-      color: #e0e0e0;
-      padding: 40px;
-      max-width: 480px;
+      background: #111;
+      color: #e5e5e5;
+      padding: 48px 40px;
+      max-width: 460px;
       margin: 0 auto;
     }
-    h1 { font-size: 20px; margin-bottom: 24px; }
-    .field { margin-bottom: 20px; }
+    h1 { font-size: 18px; font-weight: 700; margin-bottom: 32px; color: #fff; }
+    .field { margin-bottom: 24px; }
     label {
       display: block;
-      font-size: 13px;
+      font-size: 12px;
       font-weight: 600;
-      margin-bottom: 6px;
-      color: #aaa;
+      margin-bottom: 8px;
+      color: #888;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
     }
     input, select {
       width: 100%;
       padding: 10px 12px;
-      background: #1a1a2e;
+      background: #1a1a1a;
       border: 1px solid #333;
       border-radius: 6px;
-      color: #e0e0e0;
+      color: #e5e5e5;
       font-size: 14px;
     }
-    input:focus, select:focus { border-color: #6a0dad; outline: none; }
+    input:focus, select:focus { border-color: #666; outline: none; }
+    select { cursor: pointer; }
+    select option { background: #1a1a1a; color: #e5e5e5; }
     .row { display: flex; gap: 12px; }
     .row .field { flex: 1; }
-    button {
-      background: linear-gradient(135deg, #6a0dad, #e91e63);
+    .btn-save {
+      background: #fff;
       border: none;
-      color: white;
-      padding: 10px 24px;
+      color: #111;
+      padding: 10px 28px;
       border-radius: 6px;
       font-size: 14px;
       font-weight: 600;
       cursor: pointer;
-      margin-top: 8px;
+      transition: opacity 0.15s;
     }
+    .btn-save:hover { opacity: 0.85; }
+    .btn-toggle {
+      min-width: 50px; padding: 8px; font-size: 12px;
+      background: #1a1a1a; border: 1px solid #333;
+      border-radius: 6px; color: #888; cursor: pointer;
+    }
+    .btn-toggle:hover { border-color: #555; color: #ccc; }
     .saved {
-      color: #4caf50;
+      color: #8f8;
       font-size: 13px;
       margin-left: 12px;
       opacity: 0;
       transition: opacity 0.3s;
     }
     .saved.show { opacity: 1; }
+    .divider { border: none; border-top: 1px solid #1e1e1e; margin: 28px 0; }
   </style>
 </head>
 <body>
@@ -62,7 +74,7 @@
     <label>Anthropic API Key</label>
     <div style="display:flex;gap:8px;">
       <input type="password" id="apiKey" placeholder="sk-ant-..." style="flex:1;">
-      <button type="button" id="toggleKey" style="min-width:50px;padding:8px;font-size:12px;background:#252545;border:1px solid #444;border-radius:6px;color:#aaa;cursor:pointer;">보기</button>
+      <button type="button" id="toggleKey" class="btn-toggle">보기</button>
     </div>
   </div>
 
@@ -73,6 +85,8 @@
       <option value="claude-haiku-4-5-20251001">Claude Haiku 4.5 (저렴)</option>
     </select>
   </div>
+
+  <hr class="divider">
 
   <div class="field">
     <label>Confidence 임계값 (0.0 ~ 1.0)</label>
@@ -90,7 +104,7 @@
     </div>
   </div>
 
-  <button id="saveBtn">저장</button>
+  <button id="saveBtn" class="btn-save">저장</button>
   <span class="saved" id="savedMsg">저장됨!</span>
 
   <script src="../utils/storage.js"></script>
