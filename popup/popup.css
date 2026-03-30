@@ -1,0 +1,111 @@
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  width: 380px;
+  min-height: 400px;
+  font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: #0f0f1a;
+  color: #e0e0e0;
+  font-size: 13px;
+}
+
+header {
+  background: linear-gradient(135deg, #6a0dad, #e91e63);
+  padding: 12px 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.logo { font-size: 16px; font-weight: 700; color: white; }
+.icon-btn {
+  background: none; border: none; font-size: 14px; cursor: pointer;
+  color: rgba(255,255,255,0.7);
+}
+.icon-btn:hover { color: white; }
+
+section { padding: 12px 16px; }
+
+.section-label {
+  font-size: 11px; font-weight: 600; color: #e91e63;
+  margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
+}
+
+/* Friend Chips */
+#friendChips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
+.chip {
+  background: #252545; border-radius: 14px; padding: 5px 12px;
+  font-size: 12px; cursor: pointer; transition: background 0.2s;
+  max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.chip:hover { background: #353560; }
+.chip-name { font-weight: 600; }
+.chip-pref { color: #aaa; margin-left: 4px; font-size: 11px; }
+.chip-add {
+  background: none; border: 1px dashed #555; border-radius: 14px;
+  padding: 5px 12px; font-size: 12px; color: #888; cursor: pointer;
+}
+.chip-add:hover { border-color: #e91e63; color: #e91e63; }
+
+/* Modal */
+.modal {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.6);
+  display: flex; align-items: center; justify-content: center; z-index: 10;
+}
+.modal.hidden { display: none; }
+.modal-content {
+  background: #1a1a2e; border-radius: 10px; padding: 20px; width: 320px;
+}
+.modal-title { font-size: 15px; font-weight: 600; margin-bottom: 16px; }
+.field { margin-bottom: 12px; }
+.field label { display: block; font-size: 11px; color: #aaa; margin-bottom: 4px; }
+.field input {
+  width: 100%; padding: 8px 10px; background: #252545; border: 1px solid #333;
+  border-radius: 6px; color: #e0e0e0; font-size: 13px;
+}
+.field input:focus { border-color: #6a0dad; outline: none; }
+.modal-actions { display: flex; gap: 8px; margin-top: 16px; }
+.spacer { flex: 1; }
+
+/* Buttons */
+.btn-primary {
+  background: linear-gradient(135deg, #6a0dad, #e91e63); border: none;
+  color: white; padding: 8px 18px; border-radius: 6px; font-size: 13px;
+  font-weight: 600; cursor: pointer;
+}
+.btn-secondary {
+  background: #333; border: none; color: #ccc; padding: 8px 18px;
+  border-radius: 6px; font-size: 13px; cursor: pointer;
+}
+.btn-danger {
+  background: #d32f2f; border: none; color: white; padding: 8px 18px;
+  border-radius: 6px; font-size: 13px; cursor: pointer;
+}
+.hidden { display: none !important; }
+
+/* Controls */
+.controls-row {
+  display: flex; align-items: center; gap: 8px;
+}
+#reelCount {
+  width: 56px; padding: 8px; background: #252545; border: 1px solid #333;
+  border-radius: 6px; color: white; font-size: 14px; text-align: center;
+}
+.count-label { color: #aaa; }
+
+/* Progress */
+.progress-box { background: #252545; border-radius: 8px; padding: 12px; }
+.progress-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+.accent { color: #e91e63; }
+.progress-bar { background: #333; border-radius: 3px; height: 4px; }
+.progress-fill {
+  background: linear-gradient(90deg, #6a0dad, #e91e63);
+  height: 100%; border-radius: 3px; width: 0%; transition: width 0.3s;
+}
+.progress-detail { font-size: 11px; color: #888; margin-top: 6px; }
+
+/* Results */
+.result-box { background: #252545; border-radius: 8px; padding: 12px; }
+.result-friend { margin-bottom: 8px; }
+.result-friend-name { font-weight: 600; font-size: 13px; }
+.result-friend-count { color: #e91e63; font-size: 12px; }
+.result-summary { font-size: 12px; color: #aaa; border-top: 1px solid #333; padding-top: 8px; margin-top: 8px; }

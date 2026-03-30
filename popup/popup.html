@@ -1,0 +1,83 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <link rel="stylesheet" href="popup.css">
+</head>
+<body>
+  <!-- Header -->
+  <header>
+    <span class="logo">Reelmelier</span>
+    <button id="settingsBtn" class="icon-btn" title="설정">⚙️</button>
+  </header>
+
+  <!-- Friends Section -->
+  <section id="friendsSection">
+    <div class="section-label">친구 목록</div>
+    <div id="friendChips"></div>
+    <button id="addFriendBtn" class="chip-add">+ 추가</button>
+  </section>
+
+  <!-- Add/Edit Friend Modal -->
+  <div id="friendModal" class="modal hidden">
+    <div class="modal-content">
+      <div class="modal-title" id="modalTitle">친구 추가</div>
+      <div class="field">
+        <label>이름</label>
+        <input type="text" id="friendName" placeholder="민수">
+      </div>
+      <div class="field">
+        <label>취향</label>
+        <input type="text" id="friendPreference" placeholder="힐링되는 고양이 릴스">
+      </div>
+      <div class="field">
+        <label>인스타 유저네임</label>
+        <input type="text" id="friendUsername" placeholder="minsu_cat">
+      </div>
+      <div class="modal-actions">
+        <button id="modalDeleteBtn" class="btn-danger hidden">삭제</button>
+        <div class="spacer"></div>
+        <button id="modalCancelBtn" class="btn-secondary">취소</button>
+        <button id="modalSaveBtn" class="btn-primary">저장</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Controls Section -->
+  <section id="controlsSection">
+    <div class="section-label">릴스 탐색</div>
+    <div class="controls-row">
+      <input type="number" id="reelCount" value="10" min="1" max="50">
+      <span class="count-label">개 탐색</span>
+      <div class="spacer"></div>
+      <button id="startBtn" class="btn-primary">시작</button>
+    </div>
+  </section>
+
+  <!-- Progress Section -->
+  <section id="progressSection" class="hidden">
+    <div class="section-label">진행상황</div>
+    <div class="progress-box">
+      <div class="progress-header">
+        <span id="progressText">0/10 릴스 확인</span>
+        <span id="progressPercent" class="accent">0%</span>
+      </div>
+      <div class="progress-bar">
+        <div id="progressFill" class="progress-fill"></div>
+      </div>
+      <div id="progressDetail" class="progress-detail"></div>
+    </div>
+    <button id="stopBtn" class="btn-danger" style="margin-top:8px;width:100%;">중지</button>
+  </section>
+
+  <!-- Result Section -->
+  <section id="resultSection" class="hidden">
+    <div class="section-label">결과</div>
+    <div id="resultContent" class="result-box"></div>
+  </section>
+
+  <script src="../utils/storage.js"></script>
+  <script src="popup.js"></script>
+</body>
+</html>
