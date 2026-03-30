@@ -36,10 +36,46 @@
     return new Promise((resolve) => setTimeout(resolve, ms));
   }
 
+  // Extract reel data from DOM when API interception fails
+  function extractReelFromDOM() {
+    const caption = document.querySelector(
+      'h1[dir="auto"], span[dir="auto"][class*="Caption"], div[class*="Caption"] span'
+    )?.textContent || '';
+
+    const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
+
+    const comments = Array.from(
+      document.querySelectorAll('ul[class*="Comment"] span[dir="auto"]')
+    )
+      .slice(0, 10)
+      .map((el) => el.textContent);
+
+    const urlMatch = window.location.href.match(/\/reel\/([^/?]+)/);
+    const reelId = urlMatch ? urlMatch[1] : `unknown-${Date.now()}`;
+
+    return {
+      reelId,
+      reelUrl: urlMatch
+        ? `https://www.instagram.com/reel/${reelId}/`
+        : window.location.href,
+      caption,
+      hashtags: hashtags.map((h) => h.slice(1)),
+      comments,
+      thumbnailUrl: null,
+      audioTitle: '',
+    };
+  }
+
   // Process reels one by one
   async function processReels() {
     while (isScanning && collectedCount < targetCount) {
       if (reelQueue.length === 0) {
+        const domReel = extractReelFromDOM();
+        if (domReel.caption && !processedReelIds.has(domReel.reelId)) {
+          processedReelIds.add(domReel.reelId);
+          reelQueue.push(domReel);
+          continue;
+        }
         scrollToNextReel();
         await sleep(2000);
         continue;
