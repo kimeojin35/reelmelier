@@ -124,6 +124,13 @@
       });
       return true; // async response
     }
+    if (msg.type === 'CHECK_LOGIN') {
+      const isLoggedIn =
+        !window.location.href.includes('/accounts/login') &&
+        document.querySelector('svg[aria-label="홈"], svg[aria-label="Home"]') !== null;
+      sendResponse({ isLoggedIn });
+      return;
+    }
   });
 
   // Initialize

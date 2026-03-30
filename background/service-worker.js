@@ -65,7 +65,29 @@ async function handleStartScan(msg) {
   chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
     if (tabId === scanState.tabId && changeInfo.status === 'complete') {
       chrome.tabs.onUpdated.removeListener(listener);
-      setTimeout(() => {
+      setTimeout(async () => {
+        try {
+          const loginCheck = await chrome.tabs.sendMessage(scanState.tabId, {
+            type: 'CHECK_LOGIN',
+          });
+          if (!loginCheck || !loginCheck.isLoggedIn) {
+            broadcastToPopup({
+              type: 'SCAN_COMPLETE',
+              result: {
+                totalReels: 0,
+                matched: 0,
+                skipped: 0,
+                sent: [],
+                failed: [],
+                error: '인스타그램에 로그인되어 있지 않습니다.',
+              },
+            });
+            scanState.isRunning = false;
+            return;
+          }
+        } catch (e) {
+          // Content script might not be ready yet, proceed anyway
+        }
         chrome.tabs.sendMessage(scanState.tabId, {
           type: 'START_CONTENT_SCAN',
           count: scanState.targetCount,
