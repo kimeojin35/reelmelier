@@ -16,14 +16,15 @@ test('buildMessages creates correct message structure with image', () => {
     hashtags: ['cat', 'healing'],
     comments: ['귀여워!', '힐링된다'],
     audioTitle: 'Peaceful Piano',
-    thumbnailUrl: 'https://example.com/thumb.jpg',
+    thumbnailBase64: { base64: 'abc123', mediaType: 'image/jpeg' },
   };
 
   const { system, userContent } = buildMessages(friends, reelData, true);
 
   expect(system).toContain('릴스 분류기');
   const imagePart = userContent.find((p) => p.type === 'image');
-  expect(imagePart.source.url).toBe('https://example.com/thumb.jpg');
+  expect(imagePart.source.type).toBe('base64');
+  expect(imagePart.source.data).toBe('abc123');
   const textPart = userContent.find((p) => p.type === 'text');
   expect(textPart.text).toContain('민수');
   expect(textPart.text).toContain('cat');
@@ -93,7 +94,7 @@ test('classifyReel retries without image on 400', async () => {
     });
 
   const result = await classifyReel('sk-ant-test', 'claude-sonnet-4-6', [], {
-    caption: '애니', hashtags: [], comments: [], audioTitle: '', thumbnailUrl: 'https://example.com/img.jpg',
+    caption: '애니', hashtags: [], comments: [], audioTitle: '', thumbnailBase64: { base64: 'xyz', mediaType: 'image/jpeg' },
   });
 
   expect(result.matches).toEqual(['지은']);

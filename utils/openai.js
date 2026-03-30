@@ -26,10 +26,14 @@ ${friendList}
     
     const userContent = [{ type: 'text', text }]
     
-    if (includeImage && reelData.thumbnailUrl) {
+    if (includeImage && reelData.thumbnailBase64) {
         userContent.push({
             type: 'image',
-            source: { type: 'url', url: reelData.thumbnailUrl }
+            source: {
+                type: 'base64',
+                media_type: reelData.thumbnailBase64.mediaType,
+                data: reelData.thumbnailBase64.base64,
+            }
         })
     }
     
@@ -37,7 +41,7 @@ ${friendList}
 }
 
 async function classifyReel(apiKey, model, friends, reelData) {
-    const attempts = reelData.thumbnailUrl ? [true, false] : [false]
+    const attempts = reelData.thumbnailBase64 ? [true, false] : [false]
     
     for (const includeImage of attempts) {
         const { system, userContent } = buildMessages(friends, reelData, includeImage)

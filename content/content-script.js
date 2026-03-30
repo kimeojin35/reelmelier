@@ -23,6 +23,28 @@
     return match ? match[1] : null;
   }
 
+  // Convert image URL to base64 (same-origin fetch → blob → base64)
+  async function imageUrlToBase64(url) {
+    try {
+      const res = await fetch(url, { credentials: 'include' });
+      if (!res.ok) return null;
+      const blob = await res.blob();
+      return new Promise((resolve) => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          // result is "data:image/jpeg;base64,XXXXX"
+          const base64 = reader.result.split(',')[1];
+          const mediaType = blob.type || 'image/jpeg';
+          resolve({ base64, mediaType });
+        };
+        reader.onerror = () => resolve(null);
+        reader.readAsDataURL(blob);
+      });
+    } catch {
+      return null;
+    }
+  }
+
   // Fetch reel info using Instagram's API (same-origin, cookies included)
   async function fetchReelData(reelCode) {
     try {
@@ -55,6 +77,12 @@
         item.clips_metadata?.original_sound_info?.original_audio_title ||
         '';
 
+      // Convert thumbnail to base64
+      let thumbnailBase64 = null;
+      if (thumbnailUrl) {
+        thumbnailBase64 = await imageUrlToBase64(thumbnailUrl);
+      }
+
       return {
         reelId: reelCode,
         reelUrl: `https://www.instagram.com/reel/${reelCode}/`,
@@ -62,6 +90,7 @@
         hashtags: hashtags.map((h) => h.slice(1)),
         comments,
         thumbnailUrl,
+        thumbnailBase64,
         audioTitle,
       };
     } catch {
