@@ -1,0 +1,4 @@
+{"type":"server-started","port":51211,"host":"127.0.0.1","url_host":"localhost","url":"http://localhost:51211","screen_dir":"/Users/yugene/Documents/reelmelier/.superpowers/brainstorm/61410-1774846068/content","state_dir":"/Users/yugene/Documents/reelmelier/.superpowers/brainstorm/61410-1774846068/state"}
+{"type":"screen-added","file":"/Users/yugene/Documents/reelmelier/.superpowers/brainstorm/61410-1774846068/content/popup-ui.html"}
+{"type":"screen-added","file":"/Users/yugene/Documents/reelmelier/.superpowers/brainstorm/61410-1774846068/content/waiting.html"}
+{"type":"server-stopped","reason":"idle timeout"}

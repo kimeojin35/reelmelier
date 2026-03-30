@@ -1,0 +1,95 @@
+<h2>Popup UI 레이아웃</h2>
+<p class="subtitle">크롬 확장 프로그램 팝업 (400×500px) — 클릭해서 선호하는 레이아웃을 선택하세요</p>
+
+<div class="cards">
+  <!-- Option A: Tab-based -->
+  <div class="card" data-choice="a" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:0;overflow:hidden;font-family:system-ui;color:#e0e0e0;width:280px;margin:0 auto;">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#6a0dad,#e91e63);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:16px;font-weight:700;color:white;">🍷 릴믈리에</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.7);cursor:pointer;">⚙️</div>
+        </div>
+        <!-- Tabs -->
+        <div style="display:flex;border-bottom:1px solid #333;">
+          <div style="flex:1;text-align:center;padding:8px;font-size:11px;color:white;border-bottom:2px solid #e91e63;">친구관리</div>
+          <div style="flex:1;text-align:center;padding:8px;font-size:11px;color:#888;">실행</div>
+          <div style="flex:1;text-align:center;padding:8px;font-size:11px;color:#888;">결과</div>
+        </div>
+        <!-- Friend list -->
+        <div style="padding:12px;">
+          <div style="background:#252545;border-radius:6px;padding:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:12px;font-weight:600;">🐱 민수</div>
+              <div style="font-size:10px;color:#aaa;">힐링되는 고양이 릴스</div>
+              <div style="font-size:9px;color:#666;">@minsu_cat</div>
+            </div>
+            <div style="font-size:10px;color:#e91e63;cursor:pointer;">✕</div>
+          </div>
+          <div style="background:#252545;border-radius:6px;padding:10px;margin-bottom:8px;display:flex;justify-content:space-between;align-items:center;">
+            <div>
+              <div style="font-size:12px;font-weight:600;">🎌 지은</div>
+              <div style="font-size:10px;color:#aaa;">오타쿠 릴스</div>
+              <div style="font-size:9px;color:#666;">@jieun_anime</div>
+            </div>
+            <div style="font-size:10px;color:#e91e63;cursor:pointer;">✕</div>
+          </div>
+          <div style="border:1px dashed #555;border-radius:6px;padding:10px;text-align:center;font-size:11px;color:#888;cursor:pointer;">+ 친구 추가</div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>A. 탭 기반</h3>
+      <p>친구관리 / 실행 / 결과를 탭으로 분리. 각 기능이 명확히 구분됨.</p>
+    </div>
+  </div>
+
+  <!-- Option B: Single scroll -->
+  <div class="card" data-choice="b" onclick="toggleSelect(this)">
+    <div class="card-image">
+      <div style="background:#1a1a2e;border-radius:8px;padding:0;overflow:hidden;font-family:system-ui;color:#e0e0e0;width:280px;margin:0 auto;">
+        <!-- Header -->
+        <div style="background:linear-gradient(135deg,#6a0dad,#e91e63);padding:12px 16px;display:flex;align-items:center;justify-content:space-between;">
+          <div style="font-size:16px;font-weight:700;color:white;">🍷 릴믈리에</div>
+          <div style="font-size:11px;color:rgba(255,255,255,0.7);cursor:pointer;">⚙️</div>
+        </div>
+        <!-- All in one scroll -->
+        <div style="padding:12px;">
+          <!-- Friends section -->
+          <div style="font-size:11px;font-weight:600;color:#e91e63;margin-bottom:6px;">친구 목록</div>
+          <div style="display:flex;gap:6px;margin-bottom:12px;flex-wrap:wrap;">
+            <div style="background:#252545;border-radius:12px;padding:4px 10px;font-size:10px;">🐱 민수</div>
+            <div style="background:#252545;border-radius:12px;padding:4px 10px;font-size:10px;">🎌 지은</div>
+            <div style="background:#252545;border-radius:12px;padding:4px 10px;font-size:10px;">🎬 현우</div>
+            <div style="border:1px dashed #555;border-radius:12px;padding:4px 10px;font-size:10px;color:#888;">+</div>
+          </div>
+          <!-- Control -->
+          <div style="font-size:11px;font-weight:600;color:#e91e63;margin-bottom:6px;">릴스 탐색</div>
+          <div style="display:flex;gap:8px;align-items:center;margin-bottom:12px;">
+            <input type="number" value="10" style="background:#252545;border:1px solid #444;border-radius:6px;padding:6px 8px;width:50px;color:white;font-size:12px;text-align:center;" readonly>
+            <span style="font-size:11px;color:#aaa;">개 탐색</span>
+            <div style="flex:1;"></div>
+            <div style="background:linear-gradient(135deg,#6a0dad,#e91e63);border-radius:6px;padding:6px 16px;font-size:12px;font-weight:600;color:white;text-align:center;">시작</div>
+          </div>
+          <!-- Progress -->
+          <div style="font-size:11px;font-weight:600;color:#e91e63;margin-bottom:6px;">진행상황</div>
+          <div style="background:#252545;border-radius:6px;padding:10px;">
+            <div style="display:flex;justify-content:space-between;font-size:10px;margin-bottom:4px;">
+              <span>3/10 릴스 확인</span>
+              <span style="color:#e91e63;">30%</span>
+            </div>
+            <div style="background:#333;border-radius:3px;height:4px;">
+              <div style="background:linear-gradient(90deg,#6a0dad,#e91e63);width:30%;height:100%;border-radius:3px;"></div>
+            </div>
+            <div style="font-size:9px;color:#888;margin-top:6px;">민수에게 1개 전송됨</div>
+          </div>
+        </div>
+      </div>
+    </div>
+    <div class="card-body">
+      <h3>B. 싱글 스크롤</h3>
+      <p>한 화면에 모든 기능. 친구는 칩으로 표시, 컨트롤과 진행상황이 한눈에 보임.</p>
+    </div>
+  </div>
+</div>
