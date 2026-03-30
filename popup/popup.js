@@ -70,6 +70,94 @@ function closeModal() {
   document.getElementById('friendModal').classList.add('hidden');
 }
 
+// --- Execution Control ---
+
+let isRunning = false;
+
+function startExecution() {
+  const count = parseInt(document.getElementById('reelCount').value, 10);
+  if (count < 1 || count > 50) return;
+  if (friends.length === 0) {
+    alert('친구를 먼저 추가하세요.');
+    return;
+  }
+
+  isRunning = true;
+  document.getElementById('startBtn').disabled = true;
+  document.getElementById('progressSection').classList.remove('hidden');
+  document.getElementById('resultSection').classList.add('hidden');
+  updateProgress(0, count, []);
+
+  chrome.runtime.sendMessage({ type: 'START_SCAN', count, friends });
+}
+
+function stopExecution() {
+  chrome.runtime.sendMessage({ type: 'STOP_SCAN' });
+  isRunning = false;
+  document.getElementById('startBtn').disabled = false;
+}
+
+function updateProgress(current, total, details) {
+  const pct = total > 0 ? Math.round((current / total) * 100) : 0;
+  document.getElementById('progressText').textContent = `${current}/${total} 릴스 확인`;
+  document.getElementById('progressPercent').textContent = `${pct}%`;
+  document.getElementById('progressFill').style.width = `${pct}%`;
+  const detailText = details.length > 0 ? details.join(', ') : '';
+  document.getElementById('progressDetail').textContent = detailText;
+}
+
+function showResult(result) {
+  isRunning = false;
+  document.getElementById('progressSection').classList.add('hidden');
+  document.getElementById('resultSection').classList.remove('hidden');
+  document.getElementById('startBtn').disabled = false;
+
+  const container = document.getElementById('resultContent');
+  let html = '';
+
+  if (result.error) {
+    html = `<div style="color:#d32f2f;font-size:13px;padding:8px 0;">${result.error}</div>`;
+    container.innerHTML = html;
+    return;
+  }
+
+  if (result.sent && result.sent.length > 0) {
+    result.sent.forEach((s) => {
+      html += `<div class="result-friend">
+        <span class="result-friend-name">${s.friend}</span>
+        <span class="result-friend-count">${s.reels.length}개 전송</span>
+      </div>`;
+    });
+  }
+
+  if (result.failed && result.failed.length > 0) {
+    result.failed.forEach((f) => {
+      html += `<div class="result-friend">
+        <span class="result-friend-name">${f.friend}</span>
+        <span style="color:#d32f2f;font-size:12px;">전송 실패</span>
+      </div>`;
+    });
+  }
+
+  html += `<div class="result-summary">
+    총 ${result.totalReels}개 탐색 · ${result.matched}개 매칭 · ${result.skipped}개 패스
+  </div>`;
+
+  container.innerHTML = html;
+}
+
+// --- Message Listener ---
+
+chrome.runtime.onMessage.addListener((msg) => {
+  if (msg.type === 'PROGRESS_UPDATE') {
+    updateProgress(msg.current, msg.total, msg.details);
+  }
+  if (msg.type === 'SCAN_COMPLETE') {
+    showResult(msg.result);
+    saveLastResult(msg.result);
+  }
+});
+
 // --- Event Listeners ---
 
 document.addEventListener('DOMContentLoaded', () => {
@@ -80,5 +168,12 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('modalDeleteBtn').addEventListener('click', deleteFriend);
   document.getElementById('settingsBtn').addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
+  });
+  document.getElementById('startBtn').addEventListener('click', startExecution);
+  document.getElementById('stopBtn').addEventListener('click', stopExecution);
+
+  // Load last result if exists
+  getLastResult().then((result) => {
+    if (result) showResult(result);
   });
 });
