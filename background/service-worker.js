@@ -167,10 +167,7 @@ async function handleClassifyReel(msg) {
     
     scanState.lastDetails = []
 
-    // Show what data we got
-    const reelInfo = msg.reel.caption
-        ? msg.reel.caption.substring(0, 30)
-        : '(캡션 없음)';
+    const summary = result.summary || msg.reel.caption?.substring(0, 30) || '(내용 불명)';
 
     if (result.error) {
         scanState.lastDetails.push(`릴스 ${msg.current}: ${result.error}`)
@@ -181,11 +178,11 @@ async function handleClassifyReel(msg) {
             reason: result.reason,
             confidence: result.confidence
         })
-        scanState.lastDetails.push(`${result.matches.join(', ')}에게 매칭! (${Math.round(result.confidence * 100)}%)`)
+        scanState.lastDetails.push(`[${summary}] → ${result.matches.join(', ')}에게 매칭! (${Math.round(result.confidence * 100)}%)`)
     } else if (result.matches.length > 0) {
-        scanState.lastDetails.push(`매칭 있으나 확신 부족 (${Math.round(result.confidence * 100)}%) — ${reelInfo}`)
+        scanState.lastDetails.push(`[${summary}] → 확신 부족 (${Math.round(result.confidence * 100)}%)`)
     } else {
-        scanState.lastDetails.push(`패스 — ${reelInfo}`)
+        scanState.lastDetails.push(`[${summary}] → 패스`)
     }
     
     broadcastToPopup({

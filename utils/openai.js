@@ -5,6 +5,7 @@ const SYSTEM_PROMPT = `너는 인스타그램 릴스 분류기야.
 
 반드시 아래 JSON 형식으로만 응답해:
 {
+  "summary": "릴스 내용 한 줄 요약 (예: 고양이가 박스에 들어가는 영상)",
   "matches": ["친구이름"],
   "reason": "매칭 이유 한 줄",
   "confidence": 0.0~1.0
@@ -85,6 +86,7 @@ async function classifyReel(apiKey, model, friends, reelData) {
             const jsonMatch = raw.match(/\{[\s\S]*\}/)
             const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw)
             return {
+                summary: parsed.summary || '',
                 matches: parsed.matches || [],
                 reason: parsed.reason || '',
                 confidence: parsed.confidence || 0
