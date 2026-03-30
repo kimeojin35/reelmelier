@@ -88,10 +88,8 @@ async function checkLogin() {
     } else if (profile && profile.isLoggedIn) {
       showProfile({ ...profile, fullName: '로그인됨', username: '프로필을 불러올 수 없습니다' });
     } else {
-      const status = document.getElementById('loginStatus');
-      status.innerHTML = `<button id="checkLoginBtn" class="btn-login">Instagram 로그인 확인</button>
-        <div class="login-error">로그인되지 않았습니다. Instagram에서 먼저 로그인하세요.</div>`;
-      document.getElementById('checkLoginBtn').addEventListener('click', checkLogin);
+      chrome.tabs.create({ url: 'https://www.instagram.com/accounts/login/', active: true });
+      btn.textContent = '로그인 후 다시 확인';
     }
   });
 }
