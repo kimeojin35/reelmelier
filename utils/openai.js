@@ -28,30 +28,61 @@ ${friendList}
 
   if (reelData.thumbnailUrl) {
     userContent.push({
-      type: 'image_url',
-      image_url: { url: reelData.thumbnailUrl, detail: 'low' },
+      type: 'image',
+      source: { type: 'url', url: reelData.thumbnailUrl },
     });
   }
 
-  return [
-    { role: 'system', content: SYSTEM_PROMPT },
-    { role: 'user', content: userContent },
-  ];
+  return { system: SYSTEM_PROMPT, userContent };
 }
 
 async function classifyReel(apiKey, model, friends, reelData) {
-  const messages = buildMessages(friends, reelData);
+  const { system, userContent } = buildMessages(friends, reelData);
+
+  // Determine provider from model name
+  const isClaude = model.startsWith('claude');
 
   let response;
   try {
-    response = await fetch('https://api.openai.com/v1/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        Authorization: `Bearer ${apiKey}`,
-      },
-      body: JSON.stringify({ model, messages, max_tokens: 200 }),
-    });
+    if (isClaude) {
+      // Anthropic Claude API
+      response = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'x-api-key': apiKey,
+          'anthropic-version': '2023-06-01',
+          'anthropic-dangerous-direct-browser-access': 'true',
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 200,
+          system,
+          messages: [{ role: 'user', content: userContent }],
+        }),
+      });
+    } else {
+      // OpenAI API (backward compatible)
+      response = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          Authorization: `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({
+          model,
+          max_tokens: 200,
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: userContent.map((c) =>
+              c.type === 'image'
+                ? { type: 'image_url', image_url: { url: c.source.url, detail: 'low' } }
+                : c
+            )},
+          ],
+        }),
+      });
+    }
   } catch (err) {
     return { matches: [], reason: '', confidence: 0, error: err.message };
   }
@@ -66,10 +97,19 @@ async function classifyReel(apiKey, model, friends, reelData) {
   }
 
   const data = await response.json();
-  const raw = data.choices[0].message.content;
+
+  // Extract text from response (different format per provider)
+  let raw;
+  if (isClaude) {
+    raw = data.content?.[0]?.text || '';
+  } else {
+    raw = data.choices?.[0]?.message?.content || '';
+  }
 
   try {
-    const parsed = JSON.parse(raw);
+    // Extract JSON from response (handle markdown code blocks)
+    const jsonMatch = raw.match(/\{[\s\S]*\}/);
+    const parsed = JSON.parse(jsonMatch ? jsonMatch[0] : raw);
     return {
       matches: parsed.matches || [],
       reason: parsed.reason || '',

@@ -20,16 +20,13 @@ test('buildMessages creates correct message structure with image', () => {
     thumbnailUrl: 'https://example.com/thumb.jpg',
   };
 
-  const messages = buildMessages(friends, reelData);
+  const { system, userContent } = buildMessages(friends, reelData);
 
-  expect(messages[0].role).toBe('system');
-  expect(messages[0].content).toContain('릴스 분류기');
-  expect(messages[1].role).toBe('user');
-  const contentParts = messages[1].content;
-  expect(Array.isArray(contentParts)).toBe(true);
-  const imagePart = contentParts.find((p) => p.type === 'image_url');
-  expect(imagePart.image_url.url).toBe('https://example.com/thumb.jpg');
-  const textPart = contentParts.find((p) => p.type === 'text');
+  expect(system).toContain('릴스 분류기');
+  expect(Array.isArray(userContent)).toBe(true);
+  const imagePart = userContent.find((p) => p.type === 'image');
+  expect(imagePart.source.url).toBe('https://example.com/thumb.jpg');
+  const textPart = userContent.find((p) => p.type === 'text');
   expect(textPart.text).toContain('민수');
   expect(textPart.text).toContain('cat');
 });
@@ -44,13 +41,46 @@ test('buildMessages works without thumbnail', () => {
     thumbnailUrl: null,
   };
 
-  const messages = buildMessages(friends, reelData);
-  const contentParts = messages[1].content;
-  const imagePart = contentParts.find((p) => p.type === 'image_url');
+  const { userContent } = buildMessages(friends, reelData);
+  const imagePart = userContent.find((p) => p.type === 'image');
   expect(imagePart).toBeUndefined();
 });
 
-test('classifyReel parses API response correctly', async () => {
+test('classifyReel with Claude parses response correctly', async () => {
+  global.fetch.mockResolvedValueOnce({
+    ok: true,
+    json: () =>
+      Promise.resolve({
+        content: [
+          {
+            text: JSON.stringify({
+              matches: ['민수'],
+              reason: '고양이가 등장',
+              confidence: 0.9,
+            }),
+          },
+        ],
+      }),
+  });
+
+  const result = await classifyReel('sk-ant-test', 'claude-sonnet-4-6', [], {
+    caption: '',
+    hashtags: [],
+    comments: [],
+    audioTitle: '',
+    thumbnailUrl: null,
+  });
+
+  expect(result.matches).toEqual(['민수']);
+  expect(result.confidence).toBe(0.9);
+  // Verify it called Anthropic API
+  expect(global.fetch).toHaveBeenCalledWith(
+    'https://api.anthropic.com/v1/messages',
+    expect.anything()
+  );
+});
+
+test('classifyReel with GPT parses response correctly', async () => {
   global.fetch.mockResolvedValueOnce({
     ok: true,
     json: () =>
@@ -59,9 +89,9 @@ test('classifyReel parses API response correctly', async () => {
           {
             message: {
               content: JSON.stringify({
-                matches: ['민수'],
-                reason: '고양이가 등장',
-                confidence: 0.9,
+                matches: ['지은'],
+                reason: '애니메이션 관련',
+                confidence: 0.8,
               }),
             },
           },
@@ -77,8 +107,12 @@ test('classifyReel parses API response correctly', async () => {
     thumbnailUrl: null,
   });
 
-  expect(result.matches).toEqual(['민수']);
-  expect(result.confidence).toBe(0.9);
+  expect(result.matches).toEqual(['지은']);
+  // Verify it called OpenAI API
+  expect(global.fetch).toHaveBeenCalledWith(
+    'https://api.openai.com/v1/chat/completions',
+    expect.anything()
+  );
 });
 
 test('classifyReel returns empty matches on API error', async () => {
@@ -88,7 +122,7 @@ test('classifyReel returns empty matches on API error', async () => {
     statusText: 'Too Many Requests',
   });
 
-  const result = await classifyReel('sk-test', 'gpt-4o', [], {
+  const result = await classifyReel('sk-test', 'claude-sonnet-4-6', [], {
     caption: '',
     hashtags: [],
     comments: [],
@@ -100,16 +134,20 @@ test('classifyReel returns empty matches on API error', async () => {
   expect(result.error).toBeTruthy();
 });
 
-test('classifyReel returns empty matches on malformed JSON', async () => {
+test('classifyReel handles markdown code block in response', async () => {
   global.fetch.mockResolvedValueOnce({
     ok: true,
     json: () =>
       Promise.resolve({
-        choices: [{ message: { content: 'not json' } }],
+        content: [
+          {
+            text: '```json\n{"matches": ["민수"], "reason": "고양이", "confidence": 0.7}\n```',
+          },
+        ],
       }),
   });
 
-  const result = await classifyReel('sk-test', 'gpt-4o', [], {
+  const result = await classifyReel('sk-test', 'claude-sonnet-4-6', [], {
     caption: '',
     hashtags: [],
     comments: [],
@@ -117,6 +155,6 @@ test('classifyReel returns empty matches on malformed JSON', async () => {
     thumbnailUrl: null,
   });
 
-  expect(result.matches).toEqual([]);
-  expect(result.error).toBeTruthy();
+  expect(result.matches).toEqual(['민수']);
+  expect(result.confidence).toBe(0.7);
 });

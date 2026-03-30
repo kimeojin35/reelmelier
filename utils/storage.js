@@ -1,6 +1,6 @@
 const DEFAULT_SETTINGS = {
   apiKey: '',
-  model: 'gpt-4o',
+  model: 'claude-sonnet-4-6',
   confidenceThreshold: 0.5,
   dmDelayMin: 2000,
   dmDelayMax: 5000,

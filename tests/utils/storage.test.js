@@ -44,7 +44,7 @@ test('getSettings returns defaults when nothing saved', async () => {
   const settings = await getSettings();
   expect(settings).toEqual({
     apiKey: '',
-    model: 'gpt-4o',
+    model: 'claude-sonnet-4-6',
     confidenceThreshold: 0.5,
     dmDelayMin: 2000,
     dmDelayMax: 5000,
@@ -55,7 +55,7 @@ test('saveSettings merges with defaults', async () => {
   await saveSettings({ apiKey: 'sk-test123' });
   const settings = await getSettings();
   expect(settings.apiKey).toBe('sk-test123');
-  expect(settings.model).toBe('gpt-4o');
+  expect(settings.model).toBe('claude-sonnet-4-6');
 });
 
 test('saveLastResult and getLastResult round-trip', async () => {
