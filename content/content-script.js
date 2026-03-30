@@ -98,8 +98,8 @@
     }
   }
 
-  // Fallback: extract whatever text is visible on page
-  function extractFromDOM(reelCode) {
+  // Fallback: extract from DOM + grab video thumbnail
+  async function extractFromDOM(reelCode) {
     // Try multiple selectors for caption
     const captionEl =
       document.querySelector('h1') ||
@@ -108,6 +108,30 @@
     const caption = captionEl?.textContent?.trim() || '';
     const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
 
+    // Try to get video thumbnail
+    let thumbnailBase64 = null;
+    const video = document.querySelector('video');
+    if (video) {
+      // Method 1: video poster attribute
+      if (video.poster) {
+        thumbnailBase64 = await imageUrlToBase64(video.poster);
+      }
+      // Method 2: capture frame from video
+      if (!thumbnailBase64) {
+        try {
+          const canvas = document.createElement('canvas');
+          canvas.width = video.videoWidth || 360;
+          canvas.height = video.videoHeight || 640;
+          canvas.getContext('2d').drawImage(video, 0, 0);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          const base64 = dataUrl.split(',')[1];
+          if (base64 && base64.length > 100) {
+            thumbnailBase64 = { base64, mediaType: 'image/jpeg' };
+          }
+        } catch {}
+      }
+    }
+
     return {
       reelId: reelCode || `dom-${Date.now()}`,
       reelUrl: window.location.href,
@@ -115,6 +139,7 @@
       hashtags: hashtags.map((h) => h.slice(1)),
       comments: [],
       thumbnailUrl: null,
+      thumbnailBase64,
       audioTitle: '',
     };
   }
@@ -184,7 +209,7 @@
         // Try API first, fall back to DOM
         let reelData = await fetchReelData(reelCode);
         if (!reelData) {
-          reelData = extractFromDOM(reelCode);
+          reelData = await extractFromDOM(reelCode);
         }
 
         collectedCount++;
