@@ -29,7 +29,7 @@ async function ensureInstagramTab() {
   if (tabs.length > 0) {
     tab = tabs[0];
   } else {
-    tab = await chrome.tabs.create({ url: 'https://www.instagram.com/', active: false });
+    tab = await chrome.tabs.create({ url: 'https://www.instagram.com/reels/', active: false });
     // Wait for page load
     await new Promise((resolve) => {
       chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
