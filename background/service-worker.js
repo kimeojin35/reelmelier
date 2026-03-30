@@ -6,7 +6,6 @@ let scanState = {
   targetCount: 0,
   classifiedReels: [],
   processedCount: 0,
-  tabId: null,
 };
 
 function resetState() {
@@ -16,9 +15,135 @@ function resetState() {
     targetCount: 0,
     classifiedReels: [],
     processedCount: 0,
-    tabId: null,
   };
 }
+
+// --- Instagram API helpers (runs entirely in service worker) ---
+
+async function getInstagramCookies() {
+  const [sessionid, csrftoken, ds_user_id] = await Promise.all([
+    chrome.cookies.get({ url: 'https://www.instagram.com', name: 'sessionid' }),
+    chrome.cookies.get({ url: 'https://www.instagram.com', name: 'csrftoken' }),
+    chrome.cookies.get({ url: 'https://www.instagram.com', name: 'ds_user_id' }),
+  ]);
+  return { sessionid, csrftoken, ds_user_id };
+}
+
+function igHeaders(cookies) {
+  return {
+    'X-IG-App-ID': '936619743392459',
+    'X-CSRFToken': cookies.csrftoken?.value || '',
+    'X-Requested-With': 'XMLHttpRequest',
+    'Cookie': `sessionid=${cookies.sessionid?.value || ''}; csrftoken=${cookies.csrftoken?.value || ''}; ds_user_id=${cookies.ds_user_id?.value || ''}`,
+  };
+}
+
+async function fetchReelsFeed(cookies, count) {
+  const reels = [];
+  let maxId = null;
+
+  while (reels.length < count) {
+    const params = new URLSearchParams({ paging_token: maxId || '', max_id: maxId || '' });
+    const res = await fetch(`https://www.instagram.com/api/v1/clips/home/?${params}`, {
+      method: 'POST',
+      headers: {
+        ...igHeaders(cookies),
+        'Content-Type': 'application/x-www-form-urlencoded',
+      },
+      body: new URLSearchParams({ target_user_id: cookies.ds_user_id?.value || '0' }),
+    });
+
+    if (!res.ok) break;
+
+    const data = await res.json();
+    const items = data.items || [];
+    if (items.length === 0) break;
+
+    for (const item of items) {
+      if (reels.length >= count) break;
+      const media = item.media;
+      if (!media || !media.code) continue;
+
+      const caption = media.caption?.text || '';
+      const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
+      const comments = (media.preview_comments || []).slice(0, 10).map((c) => c.text || '');
+      const thumbnailUrl = media.image_versions2?.candidates?.[0]?.url || null;
+      const audioTitle =
+        media.clips_metadata?.music_info?.music_asset_info?.title ||
+        media.clips_metadata?.original_sound_info?.original_audio_title || '';
+
+      reels.push({
+        reelId: media.code,
+        reelUrl: `https://www.instagram.com/reel/${media.code}/`,
+        caption,
+        hashtags: hashtags.map((h) => h.slice(1)),
+        comments,
+        thumbnailUrl,
+        audioTitle,
+      });
+    }
+
+    maxId = data.paging_info?.max_id;
+    if (!maxId) break;
+  }
+
+  return reels;
+}
+
+async function sendDMviaAPI(cookies, username, reelUrls) {
+  const headers = igHeaders(cookies);
+  const results = { sent: [], failed: [] };
+
+  // Find user ID
+  const searchRes = await fetch(
+    `https://www.instagram.com/api/v1/web/search/topsearch/?query=${encodeURIComponent(username)}&context=blended`,
+    { headers }
+  );
+  if (!searchRes.ok) {
+    return { sent: [], failed: reelUrls.map((u) => ({ url: u, error: 'Search failed' })) };
+  }
+
+  const searchData = await searchRes.json();
+  const userMatch = searchData.users?.find(
+    (u) => u.user.username.toLowerCase() === username.toLowerCase()
+  );
+  if (!userMatch) {
+    return { sent: [], failed: reelUrls.map((u) => ({ url: u, error: `@${username} not found` })) };
+  }
+
+  const recipientId = String(userMatch.user.pk || userMatch.user.id);
+
+  for (const reelUrl of reelUrls) {
+    try {
+      const res = await fetch('https://www.instagram.com/api/v1/direct_v2/threads/broadcast/link/', {
+        method: 'POST',
+        headers: { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          recipient_users: JSON.stringify([recipientId]),
+          action: 'send_item',
+          link_text: reelUrl,
+          link_urls: JSON.stringify([reelUrl]),
+          client_context: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+        }),
+      });
+
+      if (res.ok) {
+        results.sent.push(reelUrl);
+      } else {
+        results.failed.push({ url: reelUrl, error: `DM ${res.status}` });
+      }
+    } catch (err) {
+      results.failed.push({ url: reelUrl, error: err.message });
+    }
+
+    // Delay between messages
+    await new Promise((r) => setTimeout(r, 1500));
+  }
+
+  return results;
+}
+
+// --- Message handler ---
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   switch (msg.type) {
@@ -32,8 +157,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       return false;
 
     case 'CHECK_INSTAGRAM':
-      checkInstagramLogin().then((result) => sendResponse(result));
-      return true; // async
+      checkInstagramLogin().then((r) => sendResponse(r));
+      return true;
 
     case 'START_SCAN':
       handleStartScan(msg);
@@ -45,20 +170,12 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
       sendResponse({ ok: true });
       return false;
 
-    case 'CLASSIFY_REEL':
-      handleClassifyReel(msg);
-      sendResponse({ ok: true });
-      return false;
-
-    case 'COLLECTION_DONE':
-      handleCollectionDone();
-      sendResponse({ ok: true });
-      return false;
-
     default:
       return false;
   }
 });
+
+// --- Scan flow (all in service worker, no tab needed for scanning) ---
 
 async function handleStartScan(msg) {
   resetState();
@@ -66,139 +183,82 @@ async function handleStartScan(msg) {
   scanState.friends = msg.friends;
   scanState.targetCount = msg.count;
 
-  // Persist running state immediately
-  await chrome.storage.local.set({
-    scanProgress: { isRunning: true, current: 0, total: msg.count, details: ['시작 중...'] },
+  await broadcastToPopup({
+    type: 'PROGRESS_UPDATE', current: 0, total: msg.count, details: ['릴스 피드 가져오는 중...'],
   });
 
-  const tabs = await chrome.tabs.query({ url: 'https://www.instagram.com/*' });
-  let tab;
-
-  if (tabs.length > 0) {
-    tab = tabs[0];
-    await chrome.tabs.update(tab.id, { url: 'https://www.instagram.com/reels/', active: true });
-  } else {
-    tab = await chrome.tabs.create({ url: 'https://www.instagram.com/reels/', active: true });
-  }
-
-  scanState.tabId = tab.id;
-
-  chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
-    if (tabId === scanState.tabId && changeInfo.status === 'complete') {
-      chrome.tabs.onUpdated.removeListener(listener);
-      setTimeout(async () => {
-        try {
-          const loginCheck = await chrome.tabs.sendMessage(scanState.tabId, {
-            type: 'CHECK_LOGIN',
-          });
-          if (!loginCheck || !loginCheck.isLoggedIn) {
-            broadcastToPopup({
-              type: 'SCAN_COMPLETE',
-              result: {
-                totalReels: 0,
-                matched: 0,
-                skipped: 0,
-                sent: [],
-                failed: [],
-                error: '인스타그램에 로그인되어 있지 않습니다.',
-              },
-            });
-            scanState.isRunning = false;
-            return;
-          }
-        } catch (e) {
-          // Content script might not be ready yet, proceed anyway
-        }
-        chrome.tabs.sendMessage(scanState.tabId, {
-          type: 'START_CONTENT_SCAN',
-          count: scanState.targetCount,
-        }).catch(() => {
-          broadcastToPopup({
-            type: 'SCAN_COMPLETE',
-            result: {
-              totalReels: 0, matched: 0, skipped: 0,
-              sent: [], failed: [],
-              error: 'Instagram 페이지와 연결할 수 없습니다. 페이지를 새로고침 후 다시 시도하세요.',
-            },
-          });
-          scanState.isRunning = false;
-        });
-      }, 2000);
-    }
-  });
-}
-
-function handleStopScan() {
-  if (scanState.tabId) {
-    chrome.tabs.sendMessage(scanState.tabId, { type: 'STOP_CONTENT_SCAN' }).catch(() => {});
-  }
-  scanState.isRunning = false;
-  chrome.storage.local.set({ scanProgress: { isRunning: false } });
-}
-
-async function handleClassifyReel(msg) {
-  if (!scanState.isRunning) return;
-
-  const settings = await getSettings();
-  if (!settings.apiKey) {
-    broadcastToPopup({
-      type: 'PROGRESS_UPDATE',
-      current: msg.current,
-      total: msg.total,
-      details: ['API 키가 설정되지 않았습니다'],
+  const cookies = await getInstagramCookies();
+  if (!cookies.sessionid) {
+    await broadcastToPopup({
+      type: 'SCAN_COMPLETE',
+      result: { totalReels: 0, matched: 0, skipped: 0, sent: [], failed: [], error: '인스타그램에 로그인되어 있지 않습니다.' },
     });
+    scanState.isRunning = false;
     return;
   }
 
-  let result;
-  try {
-    result = await classifyReel(
-      settings.apiKey,
-      settings.model,
-      scanState.friends,
-      msg.reel
-    );
-  } catch (err) {
-    result = { matches: [], error: err.message };
-  }
-
-  scanState.processedCount = msg.current;
-
-  scanState.lastDetails = [];
-  if (result.error) {
-    scanState.lastDetails.push(`릴스 ${msg.current}: ${result.error}`);
-  } else if (result.matches.length > 0 && result.confidence >= settings.confidenceThreshold) {
-    scanState.classifiedReels.push({
-      reel: msg.reel,
-      matches: result.matches,
-      reason: result.reason,
-      confidence: result.confidence,
+  // Step 1: Fetch reels from Instagram API
+  const reels = await fetchReelsFeed(cookies, msg.count);
+  if (reels.length === 0) {
+    await broadcastToPopup({
+      type: 'SCAN_COMPLETE',
+      result: { totalReels: 0, matched: 0, skipped: 0, sent: [], failed: [], error: '릴스를 가져올 수 없습니다.' },
     });
-    scanState.lastDetails.push(`${result.matches.join(', ')}에게 매칭!`);
-  } else {
-    scanState.lastDetails.push(`패스`);
+    scanState.isRunning = false;
+    return;
   }
-
-  broadcastToPopup({
-    type: 'PROGRESS_UPDATE',
-    current: msg.current,
-    total: msg.total,
-    details: scanState.lastDetails,
-  });
-}
-
-async function handleCollectionDone() {
-  if (!scanState.isRunning) return;
 
   const settings = await getSettings();
+  if (!settings.apiKey) {
+    await broadcastToPopup({
+      type: 'SCAN_COMPLETE',
+      result: { totalReels: 0, matched: 0, skipped: 0, sent: [], failed: [], error: 'API 키가 설정되지 않았습니다.' },
+    });
+    scanState.isRunning = false;
+    return;
+  }
+
+  // Step 2: Classify each reel
+  const actualCount = Math.min(reels.length, msg.count);
+
+  for (let i = 0; i < actualCount && scanState.isRunning; i++) {
+    const reel = reels[i];
+    scanState.processedCount = i + 1;
+
+    let result;
+    try {
+      result = await classifyReel(settings.apiKey, settings.model, scanState.friends, reel);
+    } catch (err) {
+      result = { matches: [], error: err.message };
+    }
+
+    scanState.lastDetails = [];
+    if (result.error) {
+      scanState.lastDetails.push(`릴스 ${i + 1}: ${result.error}`);
+    } else if (result.matches.length > 0 && result.confidence >= settings.confidenceThreshold) {
+      scanState.classifiedReels.push({ reel, matches: result.matches, reason: result.reason, confidence: result.confidence });
+      scanState.lastDetails.push(`${result.matches.join(', ')}에게 매칭!`);
+    } else {
+      scanState.lastDetails.push(`패스`);
+    }
+
+    await broadcastToPopup({
+      type: 'PROGRESS_UPDATE', current: i + 1, total: actualCount, details: scanState.lastDetails,
+    });
+  }
+
+  if (!scanState.isRunning) return;
+
+  // Step 3: Send DMs
+  await broadcastToPopup({
+    type: 'PROGRESS_UPDATE', current: actualCount, total: actualCount, details: ['DM 전송 중...'],
+  });
 
   const friendReelMap = {};
-  for (const classified of scanState.classifiedReels) {
-    for (const friendName of classified.matches) {
-      if (!friendReelMap[friendName]) {
-        friendReelMap[friendName] = [];
-      }
-      friendReelMap[friendName].push(classified.reel.reelUrl);
+  for (const c of scanState.classifiedReels) {
+    for (const name of c.matches) {
+      if (!friendReelMap[name]) friendReelMap[name] = [];
+      friendReelMap[name].push(c.reel.reelUrl);
     }
   }
 
@@ -206,110 +266,75 @@ async function handleCollectionDone() {
   const failedResults = [];
 
   for (const friend of scanState.friends) {
-    const reelUrls = friendReelMap[friend.name];
-    if (!reelUrls || reelUrls.length === 0) continue;
+    const urls = friendReelMap[friend.name];
+    if (!urls || urls.length === 0) continue;
 
     try {
-      const dmResult = await chrome.tabs.sendMessage(scanState.tabId, {
-        type: 'SEND_DM',
-        username: friend.username,
-        reelUrls,
-      });
-
-      if (dmResult && dmResult.sent && dmResult.sent.length > 0) {
-        sentResults.push({ friend: friend.name, reels: dmResult.sent });
-      }
-      if (dmResult && dmResult.failed && dmResult.failed.length > 0) {
-        failedResults.push({ friend: friend.name, reels: dmResult.failed });
-      }
+      const dmResult = await sendDMviaAPI(cookies, friend.username, urls);
+      if (dmResult.sent.length > 0) sentResults.push({ friend: friend.name, reels: dmResult.sent });
+      if (dmResult.failed.length > 0) failedResults.push({ friend: friend.name, reels: dmResult.failed });
     } catch (err) {
-      failedResults.push({ friend: friend.name, reels: reelUrls.map((u) => ({ url: u, error: err.message })) });
+      failedResults.push({ friend: friend.name, reels: urls.map((u) => ({ url: u, error: err.message })) });
     }
 
-    const delay =
-      settings.dmDelayMin +
-      Math.random() * (settings.dmDelayMax - settings.dmDelayMin);
+    const delay = settings.dmDelayMin + Math.random() * (settings.dmDelayMax - settings.dmDelayMin);
     await new Promise((r) => setTimeout(r, delay));
   }
 
-  const totalMatched = scanState.classifiedReels.length;
+  // Done
   const finalResult = {
-    totalReels: scanState.targetCount,
-    matched: totalMatched,
-    skipped: scanState.targetCount - totalMatched,
+    totalReels: actualCount,
+    matched: scanState.classifiedReels.length,
+    skipped: actualCount - scanState.classifiedReels.length,
     sent: sentResults,
     failed: failedResults,
   };
 
-  broadcastToPopup({ type: 'SCAN_COMPLETE', result: finalResult });
+  await broadcastToPopup({ type: 'SCAN_COMPLETE', result: finalResult });
   scanState.isRunning = false;
 }
 
-async function checkInstagramLogin() {
-  // Step 1: Check login via cookie
-  const cookie = await chrome.cookies.get({
-    url: 'https://www.instagram.com',
-    name: 'ds_user_id',
-  });
+function handleStopScan() {
+  scanState.isRunning = false;
+  chrome.storage.local.set({ scanProgress: { isRunning: false } });
+}
 
-  if (!cookie) {
+// --- Login check ---
+
+async function checkInstagramLogin() {
+  const cookies = await getInstagramCookies();
+  if (!cookies.ds_user_id) {
     return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
   }
 
-  // Step 2: Get session cookie and fetch profile with it
   try {
-    const sessionCookie = await chrome.cookies.get({
-      url: 'https://www.instagram.com',
-      name: 'sessionid',
-    });
-    const csrfCookie = await chrome.cookies.get({
-      url: 'https://www.instagram.com',
-      name: 'csrftoken',
+    const res = await fetch('https://www.instagram.com/api/v1/accounts/edit/web_form_data/', {
+      headers: igHeaders(cookies),
     });
 
-    if (sessionCookie) {
-      const res = await fetch('https://www.instagram.com/api/v1/accounts/edit/web_form_data/', {
-        headers: {
-          'X-IG-App-ID': '936619743392459',
-          'X-CSRFToken': csrfCookie?.value || '',
-          'Cookie': `sessionid=${sessionCookie.value}; ds_user_id=${cookie.value}`,
-        },
-      });
-
-      if (res.ok) {
-        const data = await res.json();
-        const user = data.form_data || data.user || data;
-        if (user && user.username) {
-          return {
-            isLoggedIn: true,
-            username: user.username,
-            fullName: user.full_name || user.first_name || user.username,
-            profilePic: user.profile_pic_url || '',
-          };
-        }
+    if (res.ok) {
+      const data = await res.json();
+      const user = data.form_data || data.user || data;
+      if (user && user.username) {
+        return {
+          isLoggedIn: true,
+          username: user.username,
+          fullName: user.full_name || user.first_name || user.username,
+          profilePic: user.profile_pic_url || '',
+        };
       }
     }
   } catch {}
 
-  // Step 3: Cookie exists but API failed — still logged in, just can't get profile
-  return {
-    isLoggedIn: true,
-    username: '',
-    fullName: '로그인됨',
-    profilePic: '',
-  };
+  return { isLoggedIn: true, username: '', fullName: '로그인됨', profilePic: '' };
 }
 
+// --- Popup broadcast ---
+
 async function broadcastToPopup(msg) {
-  // Always save state to storage (popup may be closed)
   if (msg.type === 'PROGRESS_UPDATE') {
     await chrome.storage.local.set({
-      scanProgress: {
-        isRunning: true,
-        current: msg.current,
-        total: msg.total,
-        details: msg.details,
-      },
+      scanProgress: { isRunning: true, current: msg.current, total: msg.total, details: msg.details },
     });
   }
   if (msg.type === 'SCAN_COMPLETE') {
@@ -318,7 +343,5 @@ async function broadcastToPopup(msg) {
       lastResult: msg.result,
     });
   }
-
-  // Only send if popup is open
   chrome.runtime.sendMessage(msg).catch(() => {});
 }
