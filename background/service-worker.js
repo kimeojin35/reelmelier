@@ -1,4 +1,4 @@
-importScripts('utils/storage.js', 'utils/openai.js');
+importScripts('../utils/storage.js', '../utils/openai.js');
 
 let scanState = {
   isRunning: false,
