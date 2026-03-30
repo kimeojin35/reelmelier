@@ -38,8 +38,34 @@
     const items = data.items || data.media || data.reels_media || [];
     for (const item of items) {
       const media = item.media || item;
-      const reel = extractReel(media);
-      if (reel) reels.push(reel);
+      // Only include video content (reels)
+      if (media.video_versions || media.media_type === 2 || media.product_type === 'clips') {
+        const reel = extractReel(media);
+        if (reel) reels.push(reel);
+      }
+    }
+
+    // Explore grid: sectional items
+    const sections = data.sectional_items || [];
+    for (const section of sections) {
+      const layoutItems = section.layout_content?.medias || [];
+      for (const li of layoutItems) {
+        const media = li.media;
+        if (media && (media.video_versions || media.media_type === 2)) {
+          const reel = extractReel(media);
+          if (reel) reels.push(reel);
+        }
+      }
+    }
+
+    // Timeline feed: feed_items
+    const feedItems = data.feed_items || [];
+    for (const fi of feedItems) {
+      const media = fi.media_or_ad || fi;
+      if (media.video_versions || media.media_type === 2 || media.product_type === 'clips') {
+        const reel = extractReel(media);
+        if (reel) reels.push(reel);
+      }
     }
 
     // GraphQL response structure
@@ -62,10 +88,14 @@
     const postHeaders = { ...headers, 'Content-Type': 'application/x-www-form-urlencoded' };
 
     const endpoints = [
-      // REST endpoints
-      { url: 'https://www.instagram.com/api/v1/feed/reels_tray/', method: 'GET', headers },
-      { url: 'https://www.instagram.com/api/v1/clips/home/', method: 'POST', headers: postHeaders, body: '' },
-      { url: 'https://www.instagram.com/api/v1/discover/web/explore_grid/', method: 'GET', headers },
+      // Suggested reels
+      { url: 'https://www.instagram.com/api/v1/clips/home/', method: 'POST', headers: postHeaders,
+        body: new URLSearchParams({ target_user_id: '0', page_size: String(count), include_feed_video: 'true' }) },
+      // Explore grid (contains reels)
+      { url: 'https://www.instagram.com/api/v1/discover/web/explore_grid/?is_prefetch=false&omit_cover_media=false&module=explore_popular&use_sectional_payload=true&cluster_id=explore_all%3A0&include_fixed_destinations=true', method: 'GET', headers },
+      // Timeline feed (contains reels from followed users)
+      { url: 'https://www.instagram.com/api/v1/feed/timeline/?reason=cold_start_fetch&is_pull_to_refresh=0', method: 'POST', headers: postHeaders,
+        body: new URLSearchParams({ device_id: 'reelmelier', is_async_ads_rti: '0', is_async_ads_double_request: '0', rti_delivery_backend: '0' }) },
     ];
 
     for (const ep of endpoints) {
