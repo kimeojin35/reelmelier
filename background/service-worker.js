@@ -71,9 +71,9 @@ async function handleStartScan(msg) {
 
   if (tabs.length > 0) {
     tab = tabs[0];
-    await chrome.tabs.update(tab.id, { url: 'https://www.instagram.com/reels/', active: true });
+    await chrome.tabs.update(tab.id, { url: 'https://www.instagram.com/reels/', active: false });
   } else {
-    tab = await chrome.tabs.create({ url: 'https://www.instagram.com/reels/' });
+    tab = await chrome.tabs.create({ url: 'https://www.instagram.com/reels/', active: false });
   }
 
   scanState.tabId = tab.id;
@@ -134,18 +134,23 @@ async function handleClassifyReel(msg) {
     return;
   }
 
-  const result = await classifyReel(
-    settings.apiKey,
-    settings.model,
-    scanState.friends,
-    msg.reel
-  );
+  let result;
+  try {
+    result = await classifyReel(
+      settings.apiKey,
+      settings.model,
+      scanState.friends,
+      msg.reel
+    );
+  } catch (err) {
+    result = { matches: [], error: err.message };
+  }
 
   scanState.processedCount = msg.current;
 
   scanState.lastDetails = [];
   if (result.error) {
-    scanState.lastDetails.push(`릴스 ${msg.current}: 분류 실패`);
+    scanState.lastDetails.push(`릴스 ${msg.current}: ${result.error}`);
   } else if (result.matches.length > 0 && result.confidence >= settings.confidenceThreshold) {
     scanState.classifiedReels.push({
       reel: msg.reel,
@@ -276,9 +281,27 @@ async function checkInstagramLogin() {
 }
 
 async function broadcastToPopup(msg) {
+  // Always save state to storage (popup may be closed)
+  if (msg.type === 'PROGRESS_UPDATE') {
+    await chrome.storage.local.set({
+      scanProgress: {
+        isRunning: true,
+        current: msg.current,
+        total: msg.total,
+        details: msg.details,
+      },
+    });
+  }
+  if (msg.type === 'SCAN_COMPLETE') {
+    await chrome.storage.local.set({
+      scanProgress: { isRunning: false },
+      lastResult: msg.result,
+    });
+  }
+
   try {
     await chrome.runtime.sendMessage(msg);
   } catch {
-    // Popup might be closed
+    // Popup is closed — state is saved in storage, will restore on reopen
   }
 }
