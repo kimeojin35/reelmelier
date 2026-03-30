@@ -90,13 +90,44 @@
     };
   }
 
-  // Move to next reel
+  // Move to next reel — try every method
   function scrollToNextReel() {
-    // Try keyboard ArrowDown first (most reliable for reels)
-    document.dispatchEvent(new KeyboardEvent('keydown', {
-      key: 'ArrowDown', code: 'ArrowDown', keyCode: 40,
-      which: 40, bubbles: true, cancelable: true,
-    }));
+    // Method 1: Find the scrollable reels container and scroll it
+    const scrollables = document.querySelectorAll('div');
+    for (const div of scrollables) {
+      const style = window.getComputedStyle(div);
+      if (
+        style.scrollSnapType && style.scrollSnapType !== 'none' &&
+        div.scrollHeight > div.clientHeight
+      ) {
+        div.scrollBy({ top: div.clientHeight, behavior: 'smooth' });
+        return;
+      }
+    }
+
+    // Method 2: Find video elements and scroll their section container
+    const videos = document.querySelectorAll('video');
+    if (videos.length > 0) {
+      const section = videos[0].closest('section') || videos[0].closest('[role="main"]') || videos[0].parentElement?.parentElement?.parentElement;
+      if (section && section.scrollHeight > section.clientHeight) {
+        section.scrollBy({ top: section.clientHeight, behavior: 'smooth' });
+        return;
+      }
+    }
+
+    // Method 3: Keyboard events on multiple targets
+    const targets = [document.activeElement, document.body, document];
+    for (const target of targets) {
+      if (target) {
+        target.dispatchEvent(new KeyboardEvent('keydown', {
+          key: 'ArrowDown', code: 'ArrowDown', keyCode: 40,
+          which: 40, bubbles: true, cancelable: true,
+        }));
+      }
+    }
+
+    // Method 4: Window scroll as last resort
+    window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
   }
 
   // Wait for URL to change (indicates new reel loaded)
@@ -142,11 +173,15 @@
       }
 
       if (collectedCount < targetCount) {
-        scrollToNextReel();
-        const changed = await waitForNewReel();
-        if (!changed) {
-          // URL didn't change — try scrolling again
+        // Try up to 3 times to move to next reel
+        let moved = false;
+        for (let attempt = 0; attempt < 3 && !moved; attempt++) {
           scrollToNextReel();
+          moved = await waitForNewReel(4000);
+          if (!moved) await sleep(1000);
+        }
+        if (!moved) {
+          // Force continue even if URL didn't change — maybe reel loaded without URL update
           await sleep(2000);
         }
         await sleep(500);
