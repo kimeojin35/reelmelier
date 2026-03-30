@@ -76,9 +76,9 @@ async function handleStartScan(msg) {
 
   if (tabs.length > 0) {
     tab = tabs[0];
-    await chrome.tabs.update(tab.id, { url: 'https://www.instagram.com/reels/', active: false });
+    await chrome.tabs.update(tab.id, { url: 'https://www.instagram.com/reels/', active: true });
   } else {
-    tab = await chrome.tabs.create({ url: 'https://www.instagram.com/reels/', active: false });
+    tab = await chrome.tabs.create({ url: 'https://www.instagram.com/reels/', active: true });
   }
 
   scanState.tabId = tab.id;
