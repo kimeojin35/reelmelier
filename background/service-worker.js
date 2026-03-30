@@ -21,6 +21,16 @@ function resetState() {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
+  if (msg.type === 'GET_STATUS') {
+    sendResponse({
+      isRunning: scanState.isRunning,
+      current: scanState.processedCount,
+      total: scanState.targetCount,
+      lastDetails: scanState.lastDetails || [],
+    });
+    return false;
+  }
+
   if (msg.type === 'START_SCAN') {
     handleStartScan(msg);
     sendResponse({ ok: true });
@@ -127,9 +137,9 @@ async function handleClassifyReel(msg) {
 
   scanState.processedCount = msg.current;
 
-  const details = [];
+  scanState.lastDetails = [];
   if (result.error) {
-    details.push(`릴스 ${msg.current}: 분류 실패`);
+    scanState.lastDetails.push(`릴스 ${msg.current}: 분류 실패`);
   } else if (result.matches.length > 0 && result.confidence >= settings.confidenceThreshold) {
     scanState.classifiedReels.push({
       reel: msg.reel,
@@ -137,16 +147,16 @@ async function handleClassifyReel(msg) {
       reason: result.reason,
       confidence: result.confidence,
     });
-    details.push(`${result.matches.join(', ')}에게 매칭!`);
+    scanState.lastDetails.push(`${result.matches.join(', ')}에게 매칭!`);
   } else {
-    details.push(`패스`);
+    scanState.lastDetails.push(`패스`);
   }
 
   broadcastToPopup({
     type: 'PROGRESS_UPDATE',
     current: msg.current,
     total: msg.total,
-    details,
+    details: scanState.lastDetails,
   });
 }
 

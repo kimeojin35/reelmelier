@@ -172,8 +172,18 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('startBtn').addEventListener('click', startExecution);
   document.getElementById('stopBtn').addEventListener('click', stopExecution);
 
-  // Load last result if exists
-  getLastResult().then((result) => {
-    if (result) showResult(result);
+  // Restore state from service worker
+  chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (status) => {
+    if (status && status.isRunning) {
+      isRunning = true;
+      document.getElementById('startBtn').disabled = true;
+      document.getElementById('progressSection').classList.remove('hidden');
+      document.getElementById('resultSection').classList.add('hidden');
+      updateProgress(status.current, status.total, status.lastDetails);
+    } else {
+      getLastResult().then((result) => {
+        if (result) showResult(result);
+      });
+    }
   });
 });
