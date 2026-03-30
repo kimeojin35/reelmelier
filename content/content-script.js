@@ -100,32 +100,44 @@
 
   // Fallback: extract from DOM + grab video thumbnail
   async function extractFromDOM(reelCode) {
-    // Try multiple selectors for caption
-    const captionEl =
-      document.querySelector('h1') ||
-      document.querySelector('span[dir="auto"]') ||
-      document.querySelector('[class*="Caption"]');
-    const caption = captionEl?.textContent?.trim() || '';
+    // Find the currently VISIBLE video
+    const video = getPlayingVideo();
+
+    // Walk up from video to find the reel's container, then search within it
+    let caption = '';
+    let container = video?.parentElement;
+    for (let i = 0; i < 10 && container; i++) {
+      // Look for text content near the video (captions, descriptions)
+      const spans = container.querySelectorAll('span[dir="auto"], h1, h2');
+      for (const span of spans) {
+        const text = span.textContent?.trim() || '';
+        if (text.length > caption.length && text.length < 2000) {
+          caption = text;
+        }
+      }
+      if (caption.length > 10) break;
+      container = container.parentElement;
+    }
+
     const hashtags = caption.match(/#[\w\uAC00-\uD7A3]+/g) || [];
 
-    // Try to get video thumbnail
+    // Capture frame from the CURRENT visible video
     let thumbnailBase64 = null;
-    const video = document.querySelector('video');
     if (video) {
-      // Method 1: video poster attribute
+      // Method 1: video poster
       if (video.poster) {
         thumbnailBase64 = await imageUrlToBase64(video.poster);
       }
-      // Method 2: capture frame from video
-      if (!thumbnailBase64) {
+      // Method 2: canvas frame capture
+      if (!thumbnailBase64 && video.readyState >= 2) {
         try {
           const canvas = document.createElement('canvas');
-          canvas.width = video.videoWidth || 360;
-          canvas.height = video.videoHeight || 640;
-          canvas.getContext('2d').drawImage(video, 0, 0);
-          const dataUrl = canvas.toDataURL('image/jpeg', 0.7);
+          canvas.width = Math.min(video.videoWidth || 360, 480);
+          canvas.height = Math.min(video.videoHeight || 640, 854);
+          canvas.getContext('2d').drawImage(video, 0, 0, canvas.width, canvas.height);
+          const dataUrl = canvas.toDataURL('image/jpeg', 0.6);
           const base64 = dataUrl.split(',')[1];
-          if (base64 && base64.length > 100) {
+          if (base64 && base64.length > 500) {
             thumbnailBase64 = { base64, mediaType: 'image/jpeg' };
           }
         } catch {}
@@ -224,8 +236,8 @@
       if (reelId && !processedReelIds.has(reelId)) {
         processedReelIds.add(reelId);
 
-        // Wait for video to load
-        await sleep(1500);
+        // Wait for video to load and start playing
+        await sleep(2500);
 
         // Collect data
         let reelData = await fetchReelData(reelId);
