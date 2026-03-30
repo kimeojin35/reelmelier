@@ -221,29 +221,38 @@ async function handleCollectionDone() {
 
 async function checkInstagramLogin() {
   const tabs = await chrome.tabs.query({ url: 'https://www.instagram.com/*' });
+  let tab;
+
   if (tabs.length === 0) {
-    // Open Instagram in a new tab
-    const tab = await chrome.tabs.create({ url: 'https://www.instagram.com/', active: true });
-    // Wait for page load
-    await new Promise((resolve) => {
-      chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
-        if (tabId === tab.id && changeInfo.status === 'complete') {
-          chrome.tabs.onUpdated.removeListener(listener);
-          setTimeout(resolve, 2000);
-        }
+    tab = await chrome.tabs.create({ url: 'https://www.instagram.com/', active: true });
+  } else {
+    tab = tabs[0];
+    await chrome.tabs.update(tab.id, { active: true });
+  }
+
+  // Wait for page to fully load
+  await new Promise((resolve) => {
+    function check() {
+      chrome.tabs.get(tab.id, (t) => {
+        if (t.status === 'complete') resolve();
+        else setTimeout(check, 500);
       });
-    });
+    }
+    check();
+  });
+
+  // Retry sending message — content script may take time to initialize
+  for (let i = 0; i < 5; i++) {
+    await new Promise((r) => setTimeout(r, 1500));
     try {
-      return await chrome.tabs.sendMessage(tab.id, { type: 'GET_PROFILE' });
+      const result = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PROFILE' });
+      if (result) return result;
     } catch {
-      return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
+      // Content script not ready yet, retry
     }
   }
-  try {
-    return await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PROFILE' });
-  } catch {
-    return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
-  }
+
+  return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
 }
 
 async function broadcastToPopup(msg) {

@@ -137,36 +137,52 @@
     }
   });
 
-  // Fetch logged-in user's profile info via Instagram's web API
+  // Fetch logged-in user's profile info
   async function getProfileInfo() {
-    try {
-      const res = await fetch('https://www.instagram.com/api/v1/accounts/edit/web_form_data/', {
-        credentials: 'include',
-      });
-      if (!res.ok) throw new Error('API failed');
-      const data = await res.json();
-      const user = data.form_data || data;
-      return {
-        isLoggedIn: true,
-        username: user.username || '',
-        fullName: user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.username || '',
-        profilePic: user.profile_pic_url || '',
-      };
-    } catch {
-      // Fallback: try parsing from page meta/scripts
+    // Check if on login page
+    if (window.location.href.includes('/accounts/login')) {
+      return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
+    }
+
+    // Try multiple API endpoints
+    const endpoints = [
+      'https://www.instagram.com/api/v1/accounts/edit/web_form_data/',
+      'https://i.instagram.com/api/v1/accounts/current_user/?edit=true',
+    ];
+
+    for (const url of endpoints) {
       try {
-        const metaEl = document.querySelector('meta[property="og:title"]');
-        const profileImg = document.querySelector('header img, nav img[alt]');
-        return {
-          isLoggedIn: !window.location.href.includes('/accounts/login'),
-          username: '',
-          fullName: metaEl?.content || '',
-          profilePic: profileImg?.src || '',
-        };
+        const res = await fetch(url, {
+          credentials: 'include',
+          headers: { 'X-IG-App-ID': '936619743392459' },
+        });
+        if (!res.ok) continue;
+        const data = await res.json();
+        const user = data.form_data || data.user || data;
+        if (user.username) {
+          return {
+            isLoggedIn: true,
+            username: user.username,
+            fullName: user.full_name || user.first_name || user.username,
+            profilePic: user.profile_pic_url || user.hd_profile_pic_url_info?.url || '',
+          };
+        }
       } catch {
-        return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
+        continue;
       }
     }
+
+    // Fallback: check DOM for login indicators
+    const navProfileLink = document.querySelector('a[href*="/accounts/edit"], a[role="link"] img[alt]');
+    const profileImg = document.querySelector('nav img[alt][src*="instagram"]');
+    const isLoggedIn = document.querySelector('svg[aria-label="홈"], svg[aria-label="Home"]') !== null;
+
+    return {
+      isLoggedIn,
+      username: '',
+      fullName: isLoggedIn ? '로그인됨' : '',
+      profilePic: profileImg?.src || '',
+    };
   }
 
   // Initialize
