@@ -144,114 +144,98 @@
     };
   }
 
-  // Move to next reel — try every method
-  function scrollToNextReel() {
-    // Method 1: Find the scrollable reels container and scroll it
-    const scrollables = document.querySelectorAll('div');
-    for (const div of scrollables) {
-      const style = window.getComputedStyle(div);
-      if (
-        style.scrollSnapType && style.scrollSnapType !== 'none' &&
-        div.scrollHeight > div.clientHeight
-      ) {
-        div.scrollBy({ top: div.clientHeight, behavior: 'smooth' });
-        return;
-      }
-    }
-
-    // Method 2: Find video elements and scroll their section container
+  // Find the visible playing video element
+  function getPlayingVideo() {
     const videos = document.querySelectorAll('video');
-    if (videos.length > 0) {
-      const section = videos[0].closest('section') || videos[0].closest('[role="main"]') || videos[0].parentElement?.parentElement?.parentElement;
-      if (section && section.scrollHeight > section.clientHeight) {
-        section.scrollBy({ top: section.clientHeight, behavior: 'smooth' });
+    for (const v of videos) {
+      const rect = v.getBoundingClientRect();
+      // Video that's mostly visible in viewport
+      if (rect.top > -100 && rect.top < window.innerHeight / 2 && rect.height > 200) {
+        return v;
+      }
+    }
+    return videos[0] || null;
+  }
+
+  // Find the scroll container (parent of videos with overflow scroll)
+  function findScrollContainer() {
+    const video = getPlayingVideo();
+    if (!video) return null;
+    let el = video.parentElement;
+    while (el && el !== document.body) {
+      const style = window.getComputedStyle(el);
+      const overflowY = style.overflowY;
+      if ((overflowY === 'scroll' || overflowY === 'auto') && el.scrollHeight > el.clientHeight) {
+        return el;
+      }
+      el = el.parentElement;
+    }
+    return null;
+  }
+
+  // Scroll to next reel
+  function scrollToNextReel() {
+    // Method 1: Scroll the snap container
+    const container = findScrollContainer();
+    if (container) {
+      container.scrollBy({ top: container.clientHeight, behavior: 'smooth' });
+      return;
+    }
+
+    // Method 2: Find next video and scroll it into view
+    const currentVideo = getPlayingVideo();
+    if (currentVideo) {
+      const allVideos = Array.from(document.querySelectorAll('video'));
+      const idx = allVideos.indexOf(currentVideo);
+      if (idx >= 0 && idx < allVideos.length - 1) {
+        allVideos[idx + 1].scrollIntoView({ behavior: 'smooth', block: 'center' });
         return;
       }
     }
 
-    // Method 3: Keyboard events on multiple targets
-    const targets = [document.activeElement, document.body, document];
-    for (const target of targets) {
-      if (target) {
-        target.dispatchEvent(new KeyboardEvent('keydown', {
-          key: 'ArrowDown', code: 'ArrowDown', keyCode: 40,
-          which: 40, bubbles: true, cancelable: true,
-        }));
-      }
-    }
-
-    // Method 4: Window scroll as last resort
+    // Method 3: Window scroll
     window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
   }
 
-  // Get current video element's src to detect reel change
-  function getCurrentVideoSrc() {
-    const videos = document.querySelectorAll('video');
-    for (const v of videos) {
-      if (v.offsetHeight > 300) return v.currentSrc || v.src || '';
-    }
-    return videos[0]?.currentSrc || videos[0]?.src || '';
-  }
-
-  // Wait for something to change (URL or video)
-  async function waitForNewReel(timeout = 8000) {
-    const startUrl = window.location.href;
-    const startVideo = getCurrentVideoSrc();
+  // Wait for a genuinely different reel to appear
+  async function waitForNewReel(prevReelId, timeout = 8000) {
     const start = Date.now();
     while (Date.now() - start < timeout) {
-      const urlChanged = window.location.href !== startUrl;
-      const videoChanged = getCurrentVideoSrc() !== startVideo;
-      if (urlChanged || videoChanged) return true;
-      await sleep(300);
+      const newId = getCurrentReelId();
+      if (newId !== prevReelId) return newId;
+      await sleep(400);
     }
-    return false;
+    return null;
   }
 
-  // Generate unique ID for current reel
+  // Get stable reel ID from URL shortcode only
   function getCurrentReelId() {
-    // Try URL first
-    const urlCode = getReelCodeFromUrl();
-    if (urlCode && urlCode !== 'reels') return urlCode;
-    // Fall back to video src hash
-    const src = getCurrentVideoSrc();
-    if (src) {
-      let hash = 0;
-      for (let i = 0; i < Math.min(src.length, 100); i++) {
-        hash = ((hash << 5) - hash) + src.charCodeAt(i);
-        hash |= 0;
-      }
-      return `v${Math.abs(hash)}`;
-    }
-    return `t${Date.now()}`;
+    const match = window.location.href.match(/\/reels?\/([A-Za-z0-9_-]{6,})/);
+    return match ? match[1] : null;
   }
 
   // Main scan loop
   async function processReels() {
-    // Wait for first reel to load
     await sleep(3000);
 
     while (isScanning && collectedCount < targetCount) {
       const reelId = getCurrentReelId();
 
-      if (!processedReelIds.has(reelId)) {
+      if (reelId && !processedReelIds.has(reelId)) {
         processedReelIds.add(reelId);
 
-        // Wait for video to be ready
-        await sleep(1000);
+        // Wait for video to load
+        await sleep(1500);
 
-        // Try API first (if URL has shortcode), fall back to DOM
-        const urlCode = getReelCodeFromUrl();
-        let reelData = null;
-        if (urlCode && urlCode !== 'reels') {
-          reelData = await fetchReelData(urlCode);
-        }
+        // Collect data
+        let reelData = await fetchReelData(reelId);
         if (!reelData) {
           reelData = await extractFromDOM(reelId);
         }
 
         collectedCount++;
 
-        // Send to background and WAIT for classification to finish
+        // Classify and wait for result
         await new Promise((resolve) => {
           chrome.runtime.sendMessage({
             type: 'CLASSIFY_REEL',
@@ -264,14 +248,28 @@
         await sleep(500);
       }
 
-      // Scroll to next reel
+      // Move to next
       if (collectedCount < targetCount) {
+        const prevId = getCurrentReelId();
         scrollToNextReel();
-        const moved = await waitForNewReel(6000);
-        if (!moved) {
-          // Try again
+        const newId = await waitForNewReel(prevId, 6000);
+
+        if (!newId) {
+          // Retry scroll
           scrollToNextReel();
-          await waitForNewReel(4000);
+          const retryId = await waitForNewReel(prevId, 5000);
+          if (!retryId) {
+            // Can't scroll further — skip
+            collectedCount++;
+            await new Promise((resolve) => {
+              chrome.runtime.sendMessage({
+                type: 'CLASSIFY_REEL',
+                reel: { reelId: `skip-${collectedCount}`, reelUrl: '', caption: '', hashtags: [], comments: [], thumbnailBase64: null, audioTitle: '' },
+                current: collectedCount,
+                total: targetCount,
+              }, () => resolve());
+            });
+          }
         }
         // Wait for new video to start playing
         await sleep(1500);
