@@ -220,39 +220,47 @@ async function handleCollectionDone() {
 }
 
 async function checkInstagramLogin() {
-  const tabs = await chrome.tabs.query({ url: 'https://www.instagram.com/*' });
-  let tab;
-
-  if (tabs.length === 0) {
-    tab = await chrome.tabs.create({ url: 'https://www.instagram.com/', active: true });
-  } else {
-    tab = tabs[0];
-    await chrome.tabs.update(tab.id, { active: true });
-  }
-
-  // Wait for page to fully load
-  await new Promise((resolve) => {
-    function check() {
-      chrome.tabs.get(tab.id, (t) => {
-        if (t.status === 'complete') resolve();
-        else setTimeout(check, 500);
-      });
-    }
-    check();
+  // Step 1: Check login via cookie
+  const cookie = await chrome.cookies.get({
+    url: 'https://www.instagram.com',
+    name: 'ds_user_id',
   });
 
-  // Retry sending message — content script may take time to initialize
-  for (let i = 0; i < 5; i++) {
-    await new Promise((r) => setTimeout(r, 1500));
-    try {
-      const result = await chrome.tabs.sendMessage(tab.id, { type: 'GET_PROFILE' });
-      if (result) return result;
-    } catch {
-      // Content script not ready yet, retry
-    }
+  if (!cookie) {
+    return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
   }
 
-  return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
+  // Step 2: Fetch profile directly from service worker (has host_permissions)
+  try {
+    const res = await fetch('https://i.instagram.com/api/v1/accounts/current_user/?edit=true', {
+      headers: {
+        'User-Agent': 'Instagram 275.0.0.27.98 Android',
+        'X-IG-App-ID': '936619743392459',
+      },
+      credentials: 'include',
+    });
+
+    if (res.ok) {
+      const data = await res.json();
+      const user = data.user;
+      if (user) {
+        return {
+          isLoggedIn: true,
+          username: user.username || '',
+          fullName: user.full_name || user.username || '',
+          profilePic: user.profile_pic_url || '',
+        };
+      }
+    }
+  } catch {}
+
+  // Step 3: Cookie exists but API failed — still logged in, just can't get profile
+  return {
+    isLoggedIn: true,
+    username: '',
+    fullName: '로그인됨',
+    profilePic: '',
+  };
 }
 
 async function broadcastToPopup(msg) {

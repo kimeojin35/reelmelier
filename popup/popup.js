@@ -137,6 +137,10 @@ function stopExecution() {
   chrome.runtime.sendMessage({ type: 'STOP_SCAN' });
   isRunning = false;
   document.getElementById('startBtn').disabled = false;
+  document.getElementById('progressSection').classList.add('hidden');
+  document.getElementById('resultSection').classList.remove('hidden');
+  document.getElementById('resultContent').innerHTML =
+    '<div style="color:#aaa;font-size:13px;padding:4px 0;">중지됨</div>';
 }
 
 function updateProgress(current, total, details) {
