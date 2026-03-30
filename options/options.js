@@ -25,3 +25,14 @@ async function save() {
 
 document.addEventListener('DOMContentLoaded', loadSettings);
 document.getElementById('saveBtn').addEventListener('click', save);
+document.getElementById('toggleKey').addEventListener('click', () => {
+  const input = document.getElementById('apiKey');
+  const btn = document.getElementById('toggleKey');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '숨기기';
+  } else {
+    input.type = 'password';
+    btn.textContent = '보기';
+  }
+});

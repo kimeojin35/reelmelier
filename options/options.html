@@ -60,7 +60,10 @@
 
   <div class="field">
     <label>API Key</label>
-    <input type="password" id="apiKey" placeholder="sk-... (Claude 또는 OpenAI)">
+    <div style="display:flex;gap:8px;">
+      <input type="password" id="apiKey" placeholder="sk-... (Claude 또는 OpenAI)" style="flex:1;">
+      <button type="button" id="toggleKey" style="min-width:50px;padding:8px;font-size:12px;background:#252545;border:1px solid #444;border-radius:6px;color:#aaa;cursor:pointer;">보기</button>
+    </div>
   </div>
 
   <div class="field">

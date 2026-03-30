@@ -20,7 +20,7 @@ test('buildMessages creates correct message structure with image', () => {
     thumbnailUrl: 'https://example.com/thumb.jpg',
   };
 
-  const { system, userContent } = buildMessages(friends, reelData);
+  const { system, userContent } = buildMessages(friends, reelData, true);
 
   expect(system).toContain('릴스 분류기');
   expect(Array.isArray(userContent)).toBe(true);
@@ -41,13 +41,13 @@ test('buildMessages works without thumbnail', () => {
     thumbnailUrl: null,
   };
 
-  const { userContent } = buildMessages(friends, reelData);
+  const { userContent } = buildMessages(friends, reelData, true);
   const imagePart = userContent.find((p) => p.type === 'image');
   expect(imagePart).toBeUndefined();
 });
 
 test('classifyReel with Claude parses response correctly', async () => {
-  global.fetch.mockResolvedValueOnce({
+  const mockResponse = {
     ok: true,
     json: () =>
       Promise.resolve({
@@ -61,10 +61,11 @@ test('classifyReel with Claude parses response correctly', async () => {
           },
         ],
       }),
-  });
+  };
+  global.fetch.mockResolvedValueOnce(mockResponse);
 
   const result = await classifyReel('sk-ant-test', 'claude-sonnet-4-6', [], {
-    caption: '',
+    caption: '고양이',
     hashtags: [],
     comments: [],
     audioTitle: '',
@@ -100,7 +101,7 @@ test('classifyReel with GPT parses response correctly', async () => {
   });
 
   const result = await classifyReel('sk-test', 'gpt-4o', [], {
-    caption: '',
+    caption: '애니메이션',
     hashtags: [],
     comments: [],
     audioTitle: '',
@@ -148,7 +149,7 @@ test('classifyReel handles markdown code block in response', async () => {
   });
 
   const result = await classifyReel('sk-test', 'claude-sonnet-4-6', [], {
-    caption: '',
+    caption: '고양이',
     hashtags: [],
     comments: [],
     audioTitle: '',
