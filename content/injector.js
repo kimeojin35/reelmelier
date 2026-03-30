@@ -1,5 +1,11 @@
 (function () {
-  const REEL_ENDPOINTS = ['/api/graphql', '/api/v1/clips/'];
+  const REEL_ENDPOINTS = [
+    '/graphql/query',
+    '/api/graphql',
+    '/api/v1/clips/',
+    '/api/v1/feed/reels',
+    '/api/v1/media/',
+  ];
   const REELMELIER_MSG_TYPE = 'REELMELIER_INTERCEPTED';
 
   function isReelEndpoint(url) {

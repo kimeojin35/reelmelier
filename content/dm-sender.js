@@ -2,109 +2,158 @@ function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
-async function waitForSelector(selector, timeout = 10000) {
-  const start = Date.now();
-  while (Date.now() - start < timeout) {
-    const el = document.querySelector(selector);
-    if (el) return el;
-    await sleep(300);
-  }
-  return null;
-}
-
-function simulateInput(element, value) {
-  const nativeInputValueSetter = Object.getOwnPropertyDescriptor(
-    window.HTMLInputElement.prototype,
-    'value'
-  )?.set || Object.getOwnPropertyDescriptor(
-    window.HTMLTextAreaElement.prototype,
-    'value'
-  )?.set;
-
-  if (nativeInputValueSetter) {
-    nativeInputValueSetter.call(element, value);
-  } else {
-    element.value = value;
-  }
-  element.dispatchEvent(new Event('input', { bubbles: true }));
-  element.dispatchEvent(new Event('change', { bubbles: true }));
-}
-
+// Send DM using Instagram's internal Share API (no page navigation needed)
 async function sendDM(username, reelUrls) {
   const results = { sent: [], failed: [] };
-  const MAX_RETRIES = 3;
 
   try {
-    // Navigate to DM new message page
-    window.location.href = 'https://www.instagram.com/direct/new/';
-    await sleep(3000);
+    // Step 1: Get CSRF token from cookie
+    const csrfToken = document.cookie
+      .split('; ')
+      .find((c) => c.startsWith('csrftoken='))
+      ?.split('=')[1];
 
-    // Wait for the search input in DM compose
-    const searchInput = await waitForSelector(
-      'input[name="queryBox"], input[placeholder*="검색"], input[placeholder*="Search"]'
-    );
-    if (!searchInput) {
-      return { sent: [], failed: reelUrls.map((url) => ({ url, error: 'Search input not found' })) };
+    if (!csrfToken) {
+      return { sent: [], failed: reelUrls.map((url) => ({ url, error: 'CSRF token not found' })) };
     }
 
-    // Type username
-    simulateInput(searchInput, username);
-    await sleep(1500);
-
-    // Click the matching user result
-    const userResult = await waitForSelector(
-      '[role="listbox"] button, [role="option"], div[class*="result"] span'
+    // Step 2: Search for user to get their user ID
+    const searchRes = await fetch(
+      `https://www.instagram.com/api/v1/web/search/topsearch/?query=${encodeURIComponent(username)}&context=blended`,
+      {
+        headers: {
+          'X-CSRFToken': csrfToken,
+          'X-IG-App-ID': '936619743392459',
+          'X-Requested-With': 'XMLHttpRequest',
+        },
+        credentials: 'include',
+      }
     );
-    if (!userResult) {
-      return { sent: [], failed: reelUrls.map((url) => ({ url, error: 'User not found in search' })) };
-    }
-    userResult.click();
-    await sleep(1000);
 
-    // Click "Chat" / "다음" button to open the conversation
-    const nextBtn = await waitForSelector(
-      'div[role="button"]:not([aria-disabled="true"])'
-    );
-    if (nextBtn) {
-      nextBtn.click();
-      await sleep(2000);
+    if (!searchRes.ok) {
+      return { sent: [], failed: reelUrls.map((url) => ({ url, error: `Search failed: ${searchRes.status}` })) };
     }
 
-    // Send each reel URL
+    const searchData = await searchRes.json();
+    const userMatch = searchData.users?.find(
+      (u) => u.user.username.toLowerCase() === username.toLowerCase()
+    );
+
+    if (!userMatch) {
+      return { sent: [], failed: reelUrls.map((url) => ({ url, error: `User @${username} not found` })) };
+    }
+
+    const recipientId = userMatch.user.pk || userMatch.user.id;
+
+    // Step 3: Send each reel URL as a DM link
     for (const reelUrl of reelUrls) {
-      let sent = false;
-      for (let retry = 0; retry < MAX_RETRIES && !sent; retry++) {
-        try {
-          const messageInput = await waitForSelector(
-            'textarea[placeholder*="메시지"], textarea[placeholder*="Message"], div[role="textbox"][contenteditable="true"]'
-          );
-          if (!messageInput) throw new Error('Message input not found');
+      try {
+        // Use Instagram's share endpoint to send a link via DM
+        const formData = new URLSearchParams();
+        formData.append('recipient_users', JSON.stringify([recipientId]));
+        formData.append('action', 'send_item');
+        formData.append('client_context', `${Date.now()}_${Math.random().toString(36).slice(2)}`);
 
-          if (messageInput.tagName === 'TEXTAREA') {
-            simulateInput(messageInput, reelUrl);
+        // Extract reel media ID from URL for proper share, or fall back to text
+        const reelCode = reelUrl.match(/\/reel\/([^/?]+)/)?.[1];
+
+        if (reelCode) {
+          // Try to send as a media share (shows reel preview in DM)
+          const mediaInfoRes = await fetch(
+            `https://www.instagram.com/api/v1/media/${reelCode}/info/`,
+            {
+              headers: {
+                'X-CSRFToken': csrfToken,
+                'X-IG-App-ID': '936619743392459',
+              },
+              credentials: 'include',
+            }
+          );
+
+          let sentAsMedia = false;
+          if (mediaInfoRes.ok) {
+            const mediaData = await mediaInfoRes.json();
+            const mediaId = mediaData.items?.[0]?.pk || mediaData.items?.[0]?.id;
+
+            if (mediaId) {
+              const shareRes = await fetch('https://www.instagram.com/api/v1/direct_v2/threads/broadcast/media_share/', {
+                method: 'POST',
+                headers: {
+                  'Content-Type': 'application/x-www-form-urlencoded',
+                  'X-CSRFToken': csrfToken,
+                  'X-IG-App-ID': '936619743392459',
+                },
+                credentials: 'include',
+                body: new URLSearchParams({
+                  recipient_users: JSON.stringify([recipientId]),
+                  action: 'send_item',
+                  media_id: String(mediaId),
+                  client_context: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+                }),
+              });
+
+              if (shareRes.ok) {
+                sentAsMedia = true;
+                results.sent.push(reelUrl);
+              }
+            }
+          }
+
+          // Fallback: send as text link
+          if (!sentAsMedia) {
+            const textRes = await fetch('https://www.instagram.com/api/v1/direct_v2/threads/broadcast/link/', {
+              method: 'POST',
+              headers: {
+                'Content-Type': 'application/x-www-form-urlencoded',
+                'X-CSRFToken': csrfToken,
+                'X-IG-App-ID': '936619743392459',
+              },
+              credentials: 'include',
+              body: new URLSearchParams({
+                recipient_users: JSON.stringify([recipientId]),
+                action: 'send_item',
+                link_text: reelUrl,
+                link_urls: JSON.stringify([reelUrl]),
+                client_context: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+              }),
+            });
+
+            if (textRes.ok) {
+              results.sent.push(reelUrl);
+            } else {
+              results.failed.push({ url: reelUrl, error: `Send failed: ${textRes.status}` });
+            }
+          }
+        } else {
+          // No reel code, send as plain text
+          const textRes = await fetch('https://www.instagram.com/api/v1/direct_v2/threads/broadcast/link/', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/x-www-form-urlencoded',
+              'X-CSRFToken': csrfToken,
+              'X-IG-App-ID': '936619743392459',
+            },
+            credentials: 'include',
+            body: new URLSearchParams({
+              recipient_users: JSON.stringify([recipientId]),
+              action: 'send_item',
+              link_text: reelUrl,
+              link_urls: JSON.stringify([reelUrl]),
+              client_context: `${Date.now()}_${Math.random().toString(36).slice(2)}`,
+            }),
+          });
+
+          if (textRes.ok) {
+            results.sent.push(reelUrl);
           } else {
-            // contenteditable div
-            messageInput.focus();
-            messageInput.textContent = reelUrl;
-            messageInput.dispatchEvent(new InputEvent('input', { bubbles: true }));
+            results.failed.push({ url: reelUrl, error: `Send failed: ${textRes.status}` });
           }
-
-          await sleep(500);
-
-          // Press Enter to send
-          messageInput.dispatchEvent(
-            new KeyboardEvent('keydown', { key: 'Enter', code: 'Enter', bubbles: true })
-          );
-          await sleep(1000);
-
-          sent = true;
-          results.sent.push(reelUrl);
-        } catch (err) {
-          if (retry === MAX_RETRIES - 1) {
-            results.failed.push({ url: reelUrl, error: err.message });
-          }
-          await sleep(1000);
         }
+
+        // Delay between messages
+        await sleep(1000);
+      } catch (err) {
+        results.failed.push({ url: reelUrl, error: err.message });
       }
     }
   } catch (err) {

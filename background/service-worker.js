@@ -21,42 +21,43 @@ function resetState() {
 }
 
 chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
-  if (msg.type === 'GET_STATUS') {
-    sendResponse({
-      isRunning: scanState.isRunning,
-      current: scanState.processedCount,
-      total: scanState.targetCount,
-      lastDetails: scanState.lastDetails || [],
-    });
-    return false;
-  }
+  switch (msg.type) {
+    case 'GET_STATUS':
+      sendResponse({
+        isRunning: scanState.isRunning,
+        current: scanState.processedCount,
+        total: scanState.targetCount,
+        lastDetails: scanState.lastDetails || [],
+      });
+      return false;
 
-  if (msg.type === 'CHECK_INSTAGRAM') {
-    checkInstagramLogin().then((result) => sendResponse(result));
-    return true;
-  }
+    case 'CHECK_INSTAGRAM':
+      checkInstagramLogin().then((result) => sendResponse(result));
+      return true; // async
 
-  if (msg.type === 'START_SCAN') {
-    handleStartScan(msg);
-    sendResponse({ ok: true });
-  }
+    case 'START_SCAN':
+      handleStartScan(msg);
+      sendResponse({ ok: true });
+      return false;
 
-  if (msg.type === 'STOP_SCAN') {
-    handleStopScan();
-    sendResponse({ ok: true });
-  }
+    case 'STOP_SCAN':
+      handleStopScan();
+      sendResponse({ ok: true });
+      return false;
 
-  if (msg.type === 'CLASSIFY_REEL') {
-    handleClassifyReel(msg);
-    sendResponse({ ok: true });
-  }
+    case 'CLASSIFY_REEL':
+      handleClassifyReel(msg);
+      sendResponse({ ok: true });
+      return false;
 
-  if (msg.type === 'COLLECTION_DONE') {
-    handleCollectionDone();
-    sendResponse({ ok: true });
-  }
+    case 'COLLECTION_DONE':
+      handleCollectionDone();
+      sendResponse({ ok: true });
+      return false;
 
-  return false;
+    default:
+      return false;
+  }
 });
 
 async function handleStartScan(msg) {
@@ -230,26 +231,37 @@ async function checkInstagramLogin() {
     return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
   }
 
-  // Step 2: Fetch profile directly from service worker (has host_permissions)
+  // Step 2: Get session cookie and fetch profile with it
   try {
-    const res = await fetch('https://i.instagram.com/api/v1/accounts/current_user/?edit=true', {
-      headers: {
-        'User-Agent': 'Instagram 275.0.0.27.98 Android',
-        'X-IG-App-ID': '936619743392459',
-      },
-      credentials: 'include',
+    const sessionCookie = await chrome.cookies.get({
+      url: 'https://www.instagram.com',
+      name: 'sessionid',
+    });
+    const csrfCookie = await chrome.cookies.get({
+      url: 'https://www.instagram.com',
+      name: 'csrftoken',
     });
 
-    if (res.ok) {
-      const data = await res.json();
-      const user = data.user;
-      if (user) {
-        return {
-          isLoggedIn: true,
-          username: user.username || '',
-          fullName: user.full_name || user.username || '',
-          profilePic: user.profile_pic_url || '',
-        };
+    if (sessionCookie) {
+      const res = await fetch('https://www.instagram.com/api/v1/accounts/edit/web_form_data/', {
+        headers: {
+          'X-IG-App-ID': '936619743392459',
+          'X-CSRFToken': csrfCookie?.value || '',
+          'Cookie': `sessionid=${sessionCookie.value}; ds_user_id=${cookie.value}`,
+        },
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        const user = data.form_data || data.user || data;
+        if (user && user.username) {
+          return {
+            isLoggedIn: true,
+            username: user.username,
+            fullName: user.full_name || user.first_name || user.username,
+            profilePic: user.profile_pic_url || '',
+          };
+        }
       }
     }
   } catch {}

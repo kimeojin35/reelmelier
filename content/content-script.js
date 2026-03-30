@@ -27,9 +27,25 @@
     }
   });
 
-  // Scroll to next reel
+  // Move to next reel — try multiple methods
   function scrollToNextReel() {
-    window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
+    // Method 1: Keyboard ArrowDown (works on reels snap-scroll)
+    document.dispatchEvent(new KeyboardEvent('keydown', {
+      key: 'ArrowDown', code: 'ArrowDown', keyCode: 40, bubbles: true,
+    }));
+
+    // Method 2: Find the snap-scroll container and scroll it
+    setTimeout(() => {
+      const containers = document.querySelectorAll('div[style*="scroll-snap"], main, div[role="main"]');
+      for (const c of containers) {
+        if (c.scrollHeight > c.clientHeight) {
+          c.scrollBy({ top: c.clientHeight, behavior: 'smooth' });
+          return;
+        }
+      }
+      // Method 3: Fallback to window scroll
+      window.scrollBy({ top: window.innerHeight, behavior: 'smooth' });
+    }, 200);
   }
 
   function sleep(ms) {

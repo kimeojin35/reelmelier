@@ -3,7 +3,7 @@
   "name": "Reelmelier",
   "description": "AI가 릴스를 감별하여 친구에게 자동 공유",
   "version": "1.0.0",
-  "permissions": ["storage", "activeTab", "scripting", "cookies"],
+  "permissions": ["storage", "activeTab", "scripting", "cookies", "tabs"],
   "host_permissions": ["https://www.instagram.com/*", "https://i.instagram.com/*"],
   "background": {
     "service_worker": "background/service-worker.js"
