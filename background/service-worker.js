@@ -46,9 +46,8 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             return false
         
         case 'CLASSIFY_REEL':
-            handleClassifyReel(msg)
-            sendResponse({ ok: true })
-            return false
+            handleClassifyReel(msg).then(() => sendResponse({ ok: true }))
+            return true // async response
         
         case 'COLLECTION_DONE':
             handleCollectionDone()

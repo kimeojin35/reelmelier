@@ -214,16 +214,18 @@
 
         collectedCount++;
 
-        // Send to background for classification
-        chrome.runtime.sendMessage({
-          type: 'CLASSIFY_REEL',
-          reel: reelData,
-          current: collectedCount,
-          total: targetCount,
-        }).catch(() => {});
+        // Send to background and WAIT for classification to finish
+        await new Promise((resolve) => {
+          chrome.runtime.sendMessage({
+            type: 'CLASSIFY_REEL',
+            reel: reelData,
+            current: collectedCount,
+            total: targetCount,
+          }, () => resolve());
+        });
 
-        // Wait before scrolling to next
-        await sleep(1500);
+        // Brief pause before scrolling to next
+        await sleep(1000);
       }
 
       if (collectedCount < targetCount) {
