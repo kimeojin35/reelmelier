@@ -1,7 +1,7 @@
 const DEFAULT_SETTINGS = {
   apiKey: '',
   model: 'claude-sonnet-4-6',
-  confidenceThreshold: 0.5,
+  confidenceThreshold: 0.3,
   dmDelayMin: 2000,
   dmDelayMax: 5000,
 };
