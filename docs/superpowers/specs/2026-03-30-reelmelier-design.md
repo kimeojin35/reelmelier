@@ -48,8 +48,8 @@
 Content Script가 Instagram 내부 GraphQL API 응답을 가로채서 릴스 데이터를 추출한다.
 
 동작:
-1. `fetch`와 `XMLHttpRequest`를 monkey-patch하여 인스타 내부 API 응답 가로챔
-2. 릴스 관련 엔드포인트(`/api/graphql`, `/api/v1/clips/`) 응답에서 데이터 추출
+1. Content Script가 `<script>` 태그를 페이지에 삽입하여 main world에서 `fetch`/`XMLHttpRequest`를 monkey-patch (Content Script의 isolated world에서는 페이지의 네트워크 요청을 가로챌 수 없으므로 main world injection 필수)
+2. Main world 스크립트가 릴스 관련 엔드포인트(`/api/graphql`, `/api/v1/clips/`) 응답을 가로채면 `window.postMessage`로 Content Script에 전달
 3. Content Script가 릴스 탭에서 스크롤을 자동 수행하여 새 릴스 로드 트리거
 
 각 릴스에서 추출할 데이터:
@@ -58,7 +58,7 @@ Content Script가 Instagram 내부 GraphQL API 응답을 가로채서 릴스 데
 |------|------|------|
 | 캡션 텍스트 | API 응답 | AI 분류 |
 | 해시태그 | 캡션에서 파싱 | AI 분류 |
-| 댓글 (상위 N개) | API 응답 | AI 분류 맥락 |
+| 댓글 (상위 10개) | API 응답 | AI 분류 맥락 |
 | 썸네일 URL | API 응답 (`display_url`) | AI 비전 분석 |
 | 릴스 URL/ID | API 응답 | DM 공유 링크 |
 | 오디오 정보 | API 응답 | AI 분류 보조 |
@@ -150,8 +150,9 @@ reelmelier/
 ├── background/
 │   └── service-worker.js  # 오케스트레이터: 흐름 제어, OpenAI 호출
 ├── content/
-│   ├── interceptor.js     # API 응답 인터셉트 (fetch/XHR monkey-patch)
-│   └── dm-sender.js       # DM 전송 DOM 조작
+│   ├── content-script.js  # Content Script 진입점: 메시지 라우팅, DOM 조작 (isolated world)
+│   ├── injector.js        # 페이지 main world에 주입할 API 인터셉트 스크립트
+│   └── dm-sender.js       # DM 전송 DOM 조작 로직
 ├── utils/
 │   ├── openai.js          # OpenAI API 래퍼
 │   └── storage.js         # chrome.storage 헬퍼
