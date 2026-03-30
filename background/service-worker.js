@@ -107,6 +107,16 @@ async function handleStartScan(msg) {
         chrome.tabs.sendMessage(scanState.tabId, {
           type: 'START_CONTENT_SCAN',
           count: scanState.targetCount,
+        }).catch(() => {
+          broadcastToPopup({
+            type: 'SCAN_COMPLETE',
+            result: {
+              totalReels: 0, matched: 0, skipped: 0,
+              sent: [], failed: [],
+              error: 'Instagram 페이지와 연결할 수 없습니다. 페이지를 새로고침 후 다시 시도하세요.',
+            },
+          });
+          scanState.isRunning = false;
         });
       }, 2000);
     }
@@ -193,17 +203,21 @@ async function handleCollectionDone() {
     const reelUrls = friendReelMap[friend.name];
     if (!reelUrls || reelUrls.length === 0) continue;
 
-    const dmResult = await chrome.tabs.sendMessage(scanState.tabId, {
-      type: 'SEND_DM',
-      username: friend.username,
-      reelUrls,
-    });
+    try {
+      const dmResult = await chrome.tabs.sendMessage(scanState.tabId, {
+        type: 'SEND_DM',
+        username: friend.username,
+        reelUrls,
+      });
 
-    if (dmResult.sent.length > 0) {
-      sentResults.push({ friend: friend.name, reels: dmResult.sent });
-    }
-    if (dmResult.failed.length > 0) {
-      failedResults.push({ friend: friend.name, reels: dmResult.failed });
+      if (dmResult && dmResult.sent && dmResult.sent.length > 0) {
+        sentResults.push({ friend: friend.name, reels: dmResult.sent });
+      }
+      if (dmResult && dmResult.failed && dmResult.failed.length > 0) {
+        failedResults.push({ friend: friend.name, reels: dmResult.failed });
+      }
+    } catch (err) {
+      failedResults.push({ friend: friend.name, reels: reelUrls.map((u) => ({ url: u, error: err.message })) });
     }
 
     const delay =
@@ -299,9 +313,6 @@ async function broadcastToPopup(msg) {
     });
   }
 
-  try {
-    await chrome.runtime.sendMessage(msg);
-  } catch {
-    // Popup is closed — state is saved in storage, will restore on reopen
-  }
+  // Only send if popup is open
+  chrome.runtime.sendMessage(msg).catch(() => {});
 }
