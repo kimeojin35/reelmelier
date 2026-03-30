@@ -146,8 +146,21 @@
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     switch (msg.type) {
       case 'FETCH_REELS':
-        fetchReelsFeed(msg.count).then((reels) => sendResponse({ reels }));
+        fetchReelsFeed(msg.count).then((reels) => sendResponse({ reels })).catch((err) => sendResponse({ reels: [], error: err.message }));
         return true;
+
+      case 'DEBUG_REELS_API': {
+        // 디버그용: 실제 API 응답을 그대로 반환
+        fetch('https://www.instagram.com/api/v1/clips/home/', {
+          method: 'POST',
+          headers: { ...igHeaders(), 'Content-Type': 'application/x-www-form-urlencoded' },
+          credentials: 'include',
+          body: new URLSearchParams({}),
+        })
+          .then((res) => res.text().then((text) => sendResponse({ status: res.status, body: text.slice(0, 500) })))
+          .catch((err) => sendResponse({ error: err.message }));
+        return true;
+      }
 
       case 'SEND_DM':
         sendDM(msg.username, msg.reelUrls).then((result) => sendResponse(result));

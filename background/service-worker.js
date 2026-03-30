@@ -129,21 +129,25 @@ async function handleStartScan(msg) {
   // Step 1: Fetch reels via content script
   let reels = [];
   try {
+    // 먼저 API 디버그 호출로 실제 응답 확인
+    const debug = await chrome.tabs.sendMessage(tabId, { type: 'DEBUG_REELS_API' });
+
     const response = await chrome.tabs.sendMessage(tabId, { type: 'FETCH_REELS', count: msg.count });
     reels = response?.reels || [];
+
+    if (reels.length === 0) {
+      const errorDetail = response?.error || (debug?.status ? `API ${debug.status}: ${debug.body?.slice(0, 100)}` : '알 수 없는 오류');
+      await broadcastToPopup({
+        type: 'SCAN_COMPLETE',
+        result: { totalReels: 0, matched: 0, skipped: 0, sent: [], failed: [], error: `릴스 가져오기 실패: ${errorDetail}` },
+      });
+      scanState.isRunning = false;
+      return;
+    }
   } catch (err) {
     await broadcastToPopup({
       type: 'SCAN_COMPLETE',
       result: { totalReels: 0, matched: 0, skipped: 0, sent: [], failed: [], error: '릴스를 가져올 수 없습니다: ' + err.message },
-    });
-    scanState.isRunning = false;
-    return;
-  }
-
-  if (reels.length === 0) {
-    await broadcastToPopup({
-      type: 'SCAN_COMPLETE',
-      result: { totalReels: 0, matched: 0, skipped: 0, sent: [], failed: [], error: '릴스를 가져올 수 없습니다.' },
     });
     scanState.isRunning = false;
     return;
