@@ -131,7 +131,43 @@
       sendResponse({ isLoggedIn });
       return;
     }
+    if (msg.type === 'GET_PROFILE') {
+      getProfileInfo().then((profile) => sendResponse(profile));
+      return true;
+    }
   });
+
+  // Fetch logged-in user's profile info via Instagram's web API
+  async function getProfileInfo() {
+    try {
+      const res = await fetch('https://www.instagram.com/api/v1/accounts/edit/web_form_data/', {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('API failed');
+      const data = await res.json();
+      const user = data.form_data || data;
+      return {
+        isLoggedIn: true,
+        username: user.username || '',
+        fullName: user.first_name ? `${user.first_name} ${user.last_name || ''}`.trim() : user.username || '',
+        profilePic: user.profile_pic_url || '',
+      };
+    } catch {
+      // Fallback: try parsing from page meta/scripts
+      try {
+        const metaEl = document.querySelector('meta[property="og:title"]');
+        const profileImg = document.querySelector('header img, nav img[alt]');
+        return {
+          isLoggedIn: !window.location.href.includes('/accounts/login'),
+          username: '',
+          fullName: metaEl?.content || '',
+          profilePic: profileImg?.src || '',
+        };
+      } catch {
+        return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
+      }
+    }
+  }
 
   // Initialize
   injectInterceptor();

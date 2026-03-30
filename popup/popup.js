@@ -70,6 +70,50 @@ function closeModal() {
   document.getElementById('friendModal').classList.add('hidden');
 }
 
+// --- Login Check ---
+
+async function checkLogin() {
+  const btn = document.getElementById('checkLoginBtn');
+  btn.textContent = '확인 중...';
+  btn.disabled = true;
+
+  chrome.runtime.sendMessage({ type: 'CHECK_INSTAGRAM' }, (profile) => {
+    btn.disabled = false;
+    btn.textContent = 'Instagram 로그인 확인';
+
+    if (profile && profile.isLoggedIn && profile.username) {
+      showProfile(profile);
+      // Save profile for next popup open
+      chrome.storage.local.set({ cachedProfile: profile });
+    } else if (profile && profile.isLoggedIn) {
+      showProfile({ ...profile, fullName: '로그인됨', username: '프로필을 불러올 수 없습니다' });
+    } else {
+      const status = document.getElementById('loginStatus');
+      status.innerHTML = `<button id="checkLoginBtn" class="btn-login">Instagram 로그인 확인</button>
+        <div class="login-error">로그인되지 않았습니다. Instagram에서 먼저 로그인하세요.</div>`;
+      document.getElementById('checkLoginBtn').addEventListener('click', checkLogin);
+    }
+  });
+}
+
+function showProfile(profile) {
+  document.getElementById('loginStatus').classList.add('hidden');
+  const info = document.getElementById('profileInfo');
+  info.classList.remove('hidden');
+  document.getElementById('profilePic').src = profile.profilePic || '';
+  document.getElementById('profilePic').style.display = profile.profilePic ? 'block' : 'none';
+  document.getElementById('profileName').textContent = profile.fullName || profile.username;
+  document.getElementById('profileUsername').textContent = profile.username ? `@${profile.username}` : '';
+}
+
+function loadCachedProfile() {
+  chrome.storage.local.get(['cachedProfile'], (data) => {
+    if (data.cachedProfile && data.cachedProfile.isLoggedIn) {
+      showProfile(data.cachedProfile);
+    }
+  });
+}
+
 // --- Execution Control ---
 
 let isRunning = false;
@@ -169,8 +213,11 @@ document.addEventListener('DOMContentLoaded', () => {
   document.getElementById('settingsBtn').addEventListener('click', () => {
     chrome.runtime.openOptionsPage();
   });
+  document.getElementById('checkLoginBtn').addEventListener('click', checkLogin);
+  document.getElementById('refreshLoginBtn').addEventListener('click', checkLogin);
   document.getElementById('startBtn').addEventListener('click', startExecution);
   document.getElementById('stopBtn').addEventListener('click', stopExecution);
+  loadCachedProfile();
 
   // Restore state from service worker
   chrome.runtime.sendMessage({ type: 'GET_STATUS' }, (status) => {

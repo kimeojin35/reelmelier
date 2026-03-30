@@ -31,6 +31,11 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     return false;
   }
 
+  if (msg.type === 'CHECK_INSTAGRAM') {
+    checkInstagramLogin().then((result) => sendResponse(result));
+    return true;
+  }
+
   if (msg.type === 'START_SCAN') {
     handleStartScan(msg);
     sendResponse({ ok: true });
@@ -212,6 +217,33 @@ async function handleCollectionDone() {
 
   broadcastToPopup({ type: 'SCAN_COMPLETE', result: finalResult });
   scanState.isRunning = false;
+}
+
+async function checkInstagramLogin() {
+  const tabs = await chrome.tabs.query({ url: 'https://www.instagram.com/*' });
+  if (tabs.length === 0) {
+    // Open Instagram in a new tab
+    const tab = await chrome.tabs.create({ url: 'https://www.instagram.com/', active: true });
+    // Wait for page load
+    await new Promise((resolve) => {
+      chrome.tabs.onUpdated.addListener(function listener(tabId, changeInfo) {
+        if (tabId === tab.id && changeInfo.status === 'complete') {
+          chrome.tabs.onUpdated.removeListener(listener);
+          setTimeout(resolve, 2000);
+        }
+      });
+    });
+    try {
+      return await chrome.tabs.sendMessage(tab.id, { type: 'GET_PROFILE' });
+    } catch {
+      return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
+    }
+  }
+  try {
+    return await chrome.tabs.sendMessage(tabs[0].id, { type: 'GET_PROFILE' });
+  } catch {
+    return { isLoggedIn: false, username: '', fullName: '', profilePic: '' };
+  }
 }
 
 async function broadcastToPopup(msg) {

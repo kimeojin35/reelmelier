@@ -30,6 +30,26 @@ section { padding: 12px 16px; }
   margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.5px;
 }
 
+/* Login */
+.btn-login {
+  width: 100%; padding: 10px; background: #252545; border: 1px solid #444;
+  border-radius: 8px; color: #e0e0e0; font-size: 13px; cursor: pointer;
+  transition: border-color 0.2s;
+}
+.btn-login:hover { border-color: #e91e63; }
+.profile-card {
+  display: flex; align-items: center; gap: 10px;
+  background: #252545; border-radius: 8px; padding: 10px;
+}
+.profile-pic {
+  width: 36px; height: 36px; border-radius: 50%; object-fit: cover;
+  border: 2px solid #6a0dad;
+}
+.profile-text { flex: 1; min-width: 0; }
+.profile-name { font-size: 13px; font-weight: 600; }
+.profile-username { font-size: 11px; color: #aaa; }
+.login-error { color: #d32f2f; font-size: 12px; margin-top: 6px; }
+
 /* Friend Chips */
 #friendChips { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 8px; }
 .chip {
