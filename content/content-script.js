@@ -83,6 +83,8 @@
         thumbnailBase64 = await imageUrlToBase64(thumbnailUrl);
       }
 
+      const likeCount = item.like_count || 0;
+
       return {
         reelId: reelCode,
         reelUrl: `https://www.instagram.com/reel/${reelCode}/`,
@@ -92,6 +94,7 @@
         thumbnailUrl,
         thumbnailBase64,
         audioTitle,
+        likeCount,
       };
     } catch {
       return null;
@@ -245,17 +248,30 @@
           reelData = await extractFromDOM(reelId);
         }
 
-        collectedCount++;
-
-        // Classify and wait for result
-        await new Promise((resolve) => {
+        // Skip low engagement reels (< 1000 likes)
+        const MIN_LIKES = 1000;
+        if (reelData.likeCount !== undefined && reelData.likeCount < MIN_LIKES) {
+          collectedCount++;
           chrome.runtime.sendMessage({
-            type: 'CLASSIFY_REEL',
-            reel: reelData,
+            type: 'CLASSIFY_REEL_SKIP',
+            reason: `좋아요 ${reelData.likeCount}개 (${MIN_LIKES}개 미만)`,
             current: collectedCount,
             total: targetCount,
-          }, () => resolve());
-        });
+          }).catch(() => {});
+          await sleep(300);
+        } else {
+          collectedCount++;
+
+          // Classify and wait for result
+          await new Promise((resolve) => {
+            chrome.runtime.sendMessage({
+              type: 'CLASSIFY_REEL',
+              reel: reelData,
+              current: collectedCount,
+              total: targetCount,
+            }, () => resolve());
+          });
+        }
 
         await sleep(500);
       }

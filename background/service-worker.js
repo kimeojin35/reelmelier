@@ -46,6 +46,19 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
             sendResponse({ ok: true })
             return false
         
+        case 'CLASSIFY_REEL_SKIP':
+            scanState.processedCount = msg.current
+            if (!scanState.lastDetails) scanState.lastDetails = []
+            scanState.lastDetails.push(`#${msg.current} 스킵 — ${msg.reason}`)
+            broadcastToPopup({
+                type: 'PROGRESS_UPDATE',
+                current: msg.current,
+                total: msg.total,
+                details: scanState.lastDetails
+            })
+            sendResponse({ ok: true })
+            return false
+
         case 'CLASSIFY_REEL':
             handleClassifyReel(msg).then(() => sendResponse({ ok: true }))
             return true // async response
